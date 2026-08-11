@@ -19,6 +19,10 @@
             font-display: swap;
         }
     </style>
+    <!-- Noto Serif SC 思源宋体（认证行宋体效果，手机电脑通用） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC&display=swap" rel="stylesheet">
 
     <!-- 内联PWA manifest -->
     <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA%20-%20%E4%B8%93%E4%B8%9A%E6%89%93%E5%8D%A1%E5%B7%A5%E5%85%B7%22%2C%22short_name%22%3A%22%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F9FAFB%22%2C%22theme_color%22%3A%22%234BBBF8%22%2C%22orientation%22%3A%22portrait%22%7D">
@@ -1196,17 +1200,17 @@
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
 
-            // 绘制文字（添加阴影效果）— 仅此行用 SimSun 宋体
-            ctx.font = `${fontSize}px "SimSun", "宋体", "Microsoft YaHei", sans-serif`;
+            // 绘制文字（添加阴影效果）— 仅此行用思源宋体（手机电脑通用宋体效果）
+            ctx.font = `${fontSize}px "Noto Serif SC", "SimSun", "宋体", serif`;
 
             // 认证文字独立偏移参数
             const textOffsetX = 0;  // 水平偏移
             const textOffsetY = 10;  // 垂直偏移（向下移动10px）
 
-            // 设置阴影（优化参数，减少视觉溢出）
+            // 设置阴影（黑色半透明 + 模糊处理）
             ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-            ctx.shadowBlur = 2;
-            ctx.shadowOffsetX = 0;
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 1;
             ctx.shadowOffsetY = 1;
 
             ctx.fillText('水印相机已确保时间不可篡改', x + circleSize + 6 * effectiveScale + textOffsetX, y + textOffsetY);
