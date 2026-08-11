@@ -22,7 +22,7 @@
     <!-- Noto Serif SC 思源宋体（认证行宋体效果，手机电脑通用） -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600&display=swap" rel="stylesheet">
 
     <!-- 内联PWA manifest -->
     <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA%20-%20%E4%B8%93%E4%B8%9A%E6%89%93%E5%8D%A1%E5%B7%A5%E5%85%B7%22%2C%22short_name%22%3A%22%E6%B0%B4%E5%8D%B0%E7%9B%B8%E6%9C%BA%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F9FAFB%22%2C%22theme_color%22%3A%22%234BBBF8%22%2C%22orientation%22%3A%22portrait%22%7D">
@@ -1159,16 +1159,16 @@
         function drawCertText(ctx, canvas, effectiveScale) {
             const fontSize = Math.floor(12 * effectiveScale); // 字号微调加大（11→12）
             ctx.font = `${fontSize}px "WaterMarkNoto", "Microsoft YaHei", "PingFang SC", sans-serif`;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 1)';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
 
             const x = canvas.width * 0.035;
             const y = canvas.height * 0.94;  // 与主水印同步下移（0.92→0.94）
-            const circleSize = 14 * effectiveScale; // 两圈等比缩小（16→14），更贴合证字
+            const circleSize = 12 * effectiveScale; // 两圈等比缩小（14→12）
 
-            // 圆圈独立偏移（微调下移，让圆圈中心与右边文字中心对齐）
-            const circleOffsetY = 0.5 * effectiveScale;
+            // 圆圈独立偏移（微调下移）
+            const circleOffsetY = 2.3 * effectiveScale;
 
             // 绘制外圈圆环（描边变细至 0.3×缩放，半径补偿钉死外缘）
             ctx.strokeStyle = 'white';
@@ -1184,7 +1184,7 @@
             ctx.stroke();
 
             // 绘制"证"字（水平+垂直都精确居中在内圈圆心）
-            const certFontSize = Math.floor(9 * effectiveScale);
+            const certFontSize = Math.floor(7.8 * effectiveScale); // 证字微调（7→7.8）
             ctx.font = `${certFontSize}px "WaterMarkNoto", "Microsoft YaHei", "PingFang SC", sans-serif`;
             ctx.textBaseline = 'middle'; // 中线对齐，垂直精确居中
             ctx.textAlign = 'center';     // 中心对齐，水平精确居中
@@ -1207,8 +1207,8 @@
             const textOffsetX = 0;  // 水平偏移
             const textOffsetY = 10;  // 垂直偏移（向下移动10px）
 
-            // 设置阴影（黑色半透明 + 模糊处理）
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            // 设置阴影（微调加深）
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
             ctx.shadowBlur = 4;
             ctx.shadowOffsetX = 1;
             ctx.shadowOffsetY = 1;
