@@ -1413,6 +1413,80 @@
             return out;
         }
 
+        // ==== 微信内长按保存（微信会静默吞掉 a[download] 下载，唯一可靠路子是长按图片保存）====
+        function isWeChat() {
+            return /MicroMessenger/i.test(navigator.userAgent);
+        }
+
+        function closeSaveOverlay() {
+            const old = document.getElementById('saveOverlay');
+            if (old && old.parentNode) old.parentNode.removeChild(old);
+        }
+
+        function buildSaveShell() {
+            closeSaveOverlay();
+            const ov = document.createElement('div');
+            ov.id = 'saveOverlay';
+            ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.94);display:flex;flex-direction:column;';
+            const bar = document.createElement('div');
+            bar.style.cssText = 'flex:none;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 8px;display:flex;align-items:center;gap:10px;color:#fff;font-size:14px;';
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '✕ 关闭';
+            closeBtn.style.cssText = 'border:none;background:rgba(255,255,255,.16);color:#fff;font-size:14px;padding:6px 12px;border-radius:16px;margin-right:auto;';
+            closeBtn.addEventListener('click', closeSaveOverlay);
+            bar.appendChild(closeBtn);
+            return { ov: ov, bar: bar };
+        }
+
+        function showSaveOverlay(dataUrl) {
+            const parts = buildSaveShell();
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:0 12px;';
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            img.alt = '水印照片';
+            img.style.cssText = 'max-width:100%;max-height:72vh;object-fit:contain;border-radius:8px;';
+            const tip = document.createElement('div');
+            tip.textContent = '👆 长按图片 → 保存到相册';
+            tip.style.cssText = 'color:#fff;font-size:15px;margin:14px 0 calc(env(safe-area-inset-bottom,0px) + 16px);';
+            wrap.appendChild(img);
+            wrap.appendChild(tip);
+            parts.ov.appendChild(parts.bar);
+            parts.ov.appendChild(wrap);
+            document.body.appendChild(parts.ov);
+        }
+
+        function showSaveGallery(dataUrls) {
+            const parts = buildSaveShell();
+            const counter = document.createElement('div');
+            counter.textContent = '第 1/' + dataUrls.length + ' 张';
+            counter.style.cssText = 'flex:none;color:#fff;font-size:13px;opacity:.9;';
+            parts.bar.appendChild(counter);
+            const track = document.createElement('div');
+            track.style.cssText = 'flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;min-height:0;';
+            dataUrls.forEach(function(u, i) {
+                const page = document.createElement('div');
+                page.style.cssText = 'flex:none;width:100%;height:100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px;';
+                const img = document.createElement('img');
+                img.src = u;
+                img.alt = '水印照片' + (i + 1);
+                img.style.cssText = 'max-width:100%;max-height:74vh;object-fit:contain;border-radius:8px;';
+                page.appendChild(img);
+                track.appendChild(page);
+            });
+            track.addEventListener('scroll', function() {
+                const idx = Math.min(Math.round(track.scrollLeft / track.clientWidth) + 1, dataUrls.length);
+                counter.textContent = '第 ' + idx + '/' + dataUrls.length + ' 张';
+            });
+            parts.ov.appendChild(parts.bar);
+            parts.ov.appendChild(track);
+            const tip = document.createElement('div');
+            tip.textContent = '👆 左右滑动切换 · 长按图片保存到相册';
+            tip.style.cssText = 'flex:none;color:#fff;font-size:14px;padding:10px 0 calc(env(safe-area-inset-bottom,0px) + 14px);text-align:center;';
+            parts.ov.appendChild(tip);
+            document.body.appendChild(parts.ov);
+        }
+
         async function downloadImage() {
             const active = uploadedImages[activeIndex];
             if (!active) {
@@ -1423,6 +1497,13 @@
             try {
                 const canvas = document.getElementById('previewCanvas');
                 const out = compressForExport(canvas);
+
+                if (isWeChat()) {
+                    // 微信内 a[download] 会被静默吞掉，改为长按保存
+                    showSaveOverlay(out.toDataURL('image/jpeg', EXPORT_QUALITY));
+                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                    return;
+                }
 
                 // 导出前按长边1920压缩、质量0.82
                 out.toBlob(function(blob) {
@@ -1463,6 +1544,9 @@
                         } catch (err) {
                             console.log('分享取消:', err);
                         }
+                    } else if (isWeChat()) {
+                        // 微信内下载会被吞，改为长按保存
+                        showSaveOverlay(out.toDataURL('image/jpeg', EXPORT_QUALITY));
                     } else {
                         alert('您的浏览器不支持分享功能，将自动下载图片');
                         const a = document.createElement('a');
@@ -1491,6 +1575,21 @@
 
             try {
                 const config = getConfig();
+
+                if (isWeChat()) {
+                    // 微信内 zip 没法保存：改为画廊模式逐张长按保存
+                    btn.textContent = '生成中…';
+                    await new Promise(r => setTimeout(r, 30));
+                    const urls = uploadedImages.map((item) => {
+                        const off = document.createElement('canvas');
+                        renderToCanvas(off, item.img, config);
+                        return compressForExport(off).toDataURL('image/jpeg', EXPORT_QUALITY);
+                    });
+                    showSaveGallery(urls);
+                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                    return;
+                }
+
                 // 离屏渲染每张全尺寸水印图
                 const tasks = uploadedImages.map((item, i) => new Promise((resolve) => {
                     const off = document.createElement('canvas');
