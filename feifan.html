@@ -1488,6 +1488,52 @@
             document.body.appendChild(parts.ov);
         }
 
+        function blobToDataURL(blob) {
+            return new Promise((res) => {
+                const fr = new FileReader();
+                fr.onload = () => res(fr.result);
+                fr.readAsDataURL(blob);
+            });
+        }
+
+        // 自动下载后的小提示：4 秒自动消失；万一浏览器吞了下载，点文字弹长按大图救急
+        let saveToastTimer = null;
+        function removeSaveToast() {
+            if (saveToastTimer) { clearTimeout(saveToastTimer); saveToastTimer = null; }
+            const t = document.getElementById('saveToast');
+            if (t && t.parentNode) t.parentNode.removeChild(t);
+        }
+        function showSaveToast(dataUrls) {
+            removeSaveToast();
+            const t = document.createElement('div');
+            t.id = 'saveToast';
+            t.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);z-index:99998;background:rgba(0,0,0,.82);color:#fff;font-size:13px;padding:10px 16px;border-radius:20px;max-width:86vw;text-align:center;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.3);';
+            t.textContent = '⬇ 已开始下载';
+            if (dataUrls && dataUrls.length) {
+                const sub = document.createElement('div');
+                sub.style.cssText = 'font-size:12px;opacity:.75;margin-top:2px;text-decoration:underline;';
+                sub.textContent = '没弹出下载？点这里长按保存';
+                sub.addEventListener('click', function() {
+                    removeSaveToast();
+                    if (dataUrls.length === 1) showSaveOverlay(dataUrls[0]);
+                    else showSaveGallery(dataUrls);
+                });
+                t.appendChild(sub);
+            }
+            document.body.appendChild(t);
+            saveToastTimer = setTimeout(removeSaveToast, 4000);
+        }
+
+        // 触发自动下载：a 必须先插进 DOM 再 click——安卓 UC 等只认这种写法，凭空 click 会被无视
+        function autoDownload(blob, name) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
         async function downloadImage() {
             const active = uploadedImages[activeIndex];
             if (!active) {
@@ -1499,21 +1545,12 @@
                 const canvas = document.getElementById('previewCanvas');
                 const out = compressForExport(canvas);
 
-                if (isMobileLike()) {
-                    // 手机浏览器 a[download] 会被静默吞掉，改为长按保存
-                    showSaveOverlay(out.toDataURL('image/jpeg', EXPORT_QUALITY));
-                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                    return;
-                }
-
                 // 导出前按长边1920压缩、质量0.82
                 out.toBlob(function(blob) {
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`;
-                    a.click();
-
+                    autoDownload(blob, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
                     if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                    // 手机上万一浏览器吞了下载，toast 里有长按保存的救急入口
+                    if (isMobileLike()) showSaveToast([out.toDataURL('image/jpeg', EXPORT_QUALITY)]);
                 }, 'image/jpeg', EXPORT_QUALITY);
             } catch (error) {
                 console.error('下载失败:', error);
@@ -1545,15 +1582,10 @@
                         } catch (err) {
                             console.log('分享取消:', err);
                         }
-                    } else if (isMobileLike()) {
-                        // 手机浏览器下载会被吞，改为长按保存
-                        showSaveOverlay(out.toDataURL('image/jpeg', EXPORT_QUALITY));
                     } else {
                         alert('您的浏览器不支持分享功能，将自动下载图片');
-                        const a = document.createElement('a');
-                        a.href = URL.createObjectURL(blob);
-                        a.download = `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`;
-                        a.click();
+                        autoDownload(blob, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
+                        if (isMobileLike()) showSaveToast([out.toDataURL('image/jpeg', EXPORT_QUALITY)]);
                     }
                 }, 'image/jpeg', EXPORT_QUALITY);
             } catch (error) {
@@ -1576,21 +1608,6 @@
 
             try {
                 const config = getConfig();
-
-                if (isMobileLike()) {
-                    // 手机浏览器 zip 基本存不了：改为画廊模式逐张长按保存
-                    btn.textContent = '生成中…';
-                    await new Promise(r => setTimeout(r, 30));
-                    const urls = uploadedImages.map((item) => {
-                        const off = document.createElement('canvas');
-                        renderToCanvas(off, item.img, config);
-                        return compressForExport(off).toDataURL('image/jpeg', EXPORT_QUALITY);
-                    });
-                    showSaveGallery(urls);
-                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                    return;
-                }
-
                 // 离屏渲染每张全尺寸水印图
                 const tasks = uploadedImages.map((item, i) => new Promise((resolve) => {
                     const off = document.createElement('canvas');
@@ -1604,21 +1621,20 @@
                     const zip = new JSZip();
                     items.forEach(it => zip.file(it.name, it.blob));
                     const zipBlob = await zip.generateAsync({ type: 'blob' });
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(zipBlob);
-                    a.download = `打卡水印_打包_${uploadedImages.length}张.zip`;
-                    a.click();
+                    autoDownload(zipBlob, `打卡水印_打包_${uploadedImages.length}张.zip`);
                 } else {
                     // 兜底：逐张下载
                     for (const it of items) {
-                        const a = document.createElement('a');
-                        a.href = URL.createObjectURL(it.blob);
-                        a.download = it.name;
-                        a.click();
+                        autoDownload(it.blob, it.name);
                         await new Promise(r => setTimeout(r, 350));
                     }
                 }
                 if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                if (isMobileLike()) {
+                    // 手机上万一 zip 被吞，toast 里可切换成画廊逐张长按
+                    const urls = await Promise.all(items.map(it => blobToDataURL(it.blob)));
+                    showSaveToast(urls);
+                }
             } catch (error) {
                 console.error('打包下载失败:', error);
                 alert('打包下载失败：' + error.message);
