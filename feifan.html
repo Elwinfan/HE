@@ -923,8 +923,8 @@
         <footer class="app-footer">
             <p class="copyright">我们从无意投机取巧、谋求捷径，<br>所有行动的出发点，都是立足本职，<br>助力公司稳步发展、持续成长。</p>
             <div class="version-info">
-                <span class="version">v1.1.0</span>
-                <span class="version-desc">本次更新：多图批量加水印打包下载 · 地址历史联想 · 导出图片压缩</span>
+                <span class="version">v1.1.1</span>
+                <span class="version-desc">本次更新：修复安卓 UC 等浏览器点下载没反应</span>
             </div>
         </footer>
     </div>
@@ -1525,13 +1525,23 @@
         }
 
         // 触发自动下载：a 必须先插进 DOM 再 click——安卓 UC 等只认这种写法，凭空 click 会被无视
-        function autoDownload(blob, name) {
+        // 再加两条安卓坑的对策：
+        // 1) 节点不能当场删：安卓浏览器的下载拦截是排队异步任务，click 后同步 remove 会把下载取消掉，延后删
+        // 2) href 优先用 dataURL：UC 把下载交给自家下载器跨进程取链接，blob: 只在本页面会话有效会被吞掉，data: 数据全在链接里能活着到下载器
+        function autoDownloadUrl(href, name) {
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
+            a.href = href;
             a.download = name;
+            a.style.display = 'none';
             document.body.appendChild(a);
             a.click();
-            a.remove();
+            setTimeout(function() { a.remove(); }, 60000);
+        }
+        function autoDownload(blob, name) {
+            const url = URL.createObjectURL(blob);
+            autoDownloadUrl(url, name);
+            // 太早 revoke 会让下载器拿到死链，60 秒后再放
+            setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
         }
 
         async function downloadImage() {
@@ -1546,12 +1556,13 @@
                 const out = compressForExport(canvas);
 
                 // 导出前按长边1920压缩、质量0.82
-                out.toBlob(function(blob) {
-                    autoDownload(blob, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
-                    if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                    // 手机上万一浏览器吞了下载，toast 里有长按保存的救急入口
-                    if (isMobileLike()) showSaveToast([out.toDataURL('image/jpeg', EXPORT_QUALITY)]);
-                }, 'image/jpeg', EXPORT_QUALITY);
+                // 手机浏览器（UC等）的下载必须在点击手势内同步触发：toBlob 异步回调会丢用户手势被无视，
+                // 所以这里同步 toDataURL，下载和 toast 兜底共用一份，也不再二次编码
+                const dataUrl = out.toDataURL('image/jpeg', EXPORT_QUALITY);
+                autoDownloadUrl(dataUrl, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                // 手机上万一浏览器吞了下载，toast 里有长按保存的救急入口
+                if (isMobileLike()) showSaveToast([dataUrl]);
             } catch (error) {
                 console.error('下载失败:', error);
                 alert('下载失败，请重试');
@@ -1584,8 +1595,9 @@
                         }
                     } else {
                         alert('您的浏览器不支持分享功能，将自动下载图片');
-                        autoDownload(blob, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
-                        if (isMobileLike()) showSaveToast([out.toDataURL('image/jpeg', EXPORT_QUALITY)]);
+                        const dataUrl = out.toDataURL('image/jpeg', EXPORT_QUALITY);
+                        autoDownloadUrl(dataUrl, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
+                        if (isMobileLike()) showSaveToast([dataUrl]);
                     }
                 }, 'image/jpeg', EXPORT_QUALITY);
             } catch (error) {
@@ -1623,9 +1635,9 @@
                     const zipBlob = await zip.generateAsync({ type: 'blob' });
                     autoDownload(zipBlob, `打卡水印_打包_${uploadedImages.length}张.zip`);
                 } else {
-                    // 兜底：逐张下载
+                    // 兜底：逐张下载（转 dataURL，避开 UC 下载器吞 blob:）
                     for (const it of items) {
-                        autoDownload(it.blob, it.name);
+                        autoDownloadUrl(await blobToDataURL(it.blob), it.name);
                         await new Promise(r => setTimeout(r, 350));
                     }
                 }
