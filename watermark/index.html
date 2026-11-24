@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-zcode-design>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>水印相机 · 巡店打卡水印工具</title>
+<meta name="description" content="巡店照片自动盖上时间、地点、备注。微信里打开就能用，不装 App、不用注册，照片不上传。免费版每天可保存 5 张，¥10 一次买断不限次。">
+<meta name="theme-color" content="#082443">
+<style>
+  /* ─── tokens：配色全部取自水印相机工具页，改这里全页生效 ─── */
+  :root {
+    --bg: #F9FAFB;
+    --surface: #FFFFFF;
+    --night: #082443;
+    --ink: #003366;
+    --ink-soft: #40506A;
+    --muted: #5B6880;
+    --border: #E5E7EB;
+    --control: #8A94A6;
+    --accent: #4BBBF8;
+    --accent-soft: #E3F2FD;
+    --danger: #B42318;
+    --on-night: #FFFFFF;
+    --on-night-soft: rgba(255, 255, 255, 0.78);
+    --on-night-faint: rgba(255, 255, 255, 0.18);
+    --focus: var(--ink);
+
+    /* 字体：数字用设备自带的 DIN 系，中文用系统黑体 */
+    --font-display: "DIN Alternate", "Bahnschrift", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
+    --font-body: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+
+    /* 字号：1.25 比例 */
+    --fs-caption: 12px;
+    --fs-small: 14px;
+    --fs-body: 16px;
+    --fs-h3: 20px;
+    --fs-h2: 28px;
+    --fs-h1: clamp(34px, 5vw, 60px);
+
+    /* 间距 / 圆角 / 动效 */
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 24px;
+    --s-6: 32px;
+    --s-7: 48px;
+    --s-8: 64px;
+    --s-9: 96px;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --dur-fast: 150ms;
+    --dur: 300ms;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* ─── base ─── */
+  *, *::before, *::after { box-sizing: border-box; }
+  * { margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink-soft);
+    font-size: var(--fs-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  section { scroll-margin-top: 64px; }
+  h1, h2, h3 { color: var(--ink); font-weight: 600; }
+  h1 {
+    font-family: var(--font-display);
+    font-size: var(--fs-h1);
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  h2 { font-size: var(--fs-h2); line-height: 1.3; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { font-size: var(--fs-h3); line-height: 1.4; }
+  p { max-width: 34em; }
+  ul[class], ol[class] { list-style: none; }
+  a { color: inherit; }
+  img, canvas, svg { display: block; max-width: 100%; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+  .icon {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .num { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--s-5); }
+  .skip {
+    position: absolute;
+    left: var(--s-4);
+    top: -100px;
+    z-index: 100;
+    padding: 10px 14px;
+    background: var(--surface);
+    color: var(--ink);
+    border-radius: var(--radius-sm);
+  }
+  .skip:focus { top: var(--s-2); }
+  .link-u { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ─── buttons ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s-2);
+    min-height: 48px;
+    padding: 0 var(--s-5);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-white { background: var(--on-night); color: var(--ink); }
+  .btn-accent { background: var(--accent); color: var(--ink); }
+  .btn-outline { background: var(--surface); border-color: var(--control); color: var(--ink); }
+  .btn-block { width: 100%; }
+  .btn-sm { min-height: 40px; padding: 0 var(--s-4); font-size: var(--fs-small); }
+
+  /* ─── header ─── */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--night);
+    color: var(--on-night);
+    border-bottom: 1px solid transparent;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .topbar.light {
+    background: var(--bg);
+    color: var(--ink);
+    border-color: var(--border);
+  }
+  .topbar.light .btn-white { border-color: var(--control); }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); height: 60px; }
+  .logo { display: inline-flex; align-items: center; gap: var(--s-2); color: inherit; font-size: var(--fs-h3); font-weight: 600; text-decoration: none; }
+  .logo svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nav { display: none; gap: var(--s-5); }
+  .nav a { font-size: var(--fs-small); font-weight: 500; letter-spacing: 0.02em; text-decoration: none; opacity: 0.84; }
+  .nav a:hover { opacity: 1; }
+  .nav a[aria-current="true"] { opacity: 1; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+
+  /* ─── hero ─── */
+  .hero { background: var(--night); color: var(--on-night); padding: var(--s-4) 0 var(--s-8); }
+  .hero-grid { display: flex; flex-direction: column; gap: var(--s-5); }
+  /* 手机上让演示照片排到标题后面、说明文字前面 */
+  .hero-copy { display: contents; }
+  .clockchip { order: 1; }
+  .hero h1 { order: 2; color: var(--on-night); }
+  .demo { order: 3; }
+  .hero .lede { order: 4; }
+  .hero-facts { order: 5; }
+  .clockchip {
+    display: inline-flex;
+    flex-direction: column;
+    align-self: flex-start;
+    width: max-content;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.28));
+  }
+  .clockchip .tab {
+    align-self: flex-start;
+    padding: 3px 9px 3px 12px;
+    border-radius: 5px 5px 0 0;
+    background: var(--accent);
+    color: var(--ink);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0.3em;
+  }
+  .clockchip .time {
+    padding: 6px 10px 7px;
+    border-radius: 0 0 5px 5px;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero .lede { color: var(--on-night-soft); }
+  .hero-facts { display: grid; gap: var(--s-2); }
+  .hero-facts li { display: grid; grid-template-columns: 24px 1fr; gap: var(--s-2); align-items: center; font-size: var(--fs-small); color: var(--on-night-soft); white-space: nowrap; }
+  .hero-facts .icon { width: 24px; height: 24px; padding: 4px; border-radius: 50%; background: var(--on-night-faint); color: var(--on-night); }
+
+  /* ─── hero · 页内试用 ─── */
+  .demo { width: 100%; max-width: 440px; margin: 0 auto; }
+  .demo-frame {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--night);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+  .demo-frame canvas { width: 100%; height: 100%; }
+  .demo-badge {
+    position: absolute;
+    top: var(--s-3);
+    right: var(--s-3);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(8, 36, 67, 0.74);
+    color: var(--on-night);
+    font-size: var(--fs-caption);
+    letter-spacing: 0.06em;
+  }
+  .demo-badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .demo-panel { margin-top: var(--s-4); display: grid; gap: var(--s-3); }
+  .demo-hint { font-size: var(--fs-small); color: var(--on-night-soft); }
+  .demo-hint:empty { display: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--on-night-faint);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--on-night);
+    font-size: var(--fs-small);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .chip:hover { border-color: rgba(255, 255, 255, 0.5); }
+  .chip[aria-pressed="true"] { background: var(--surface); border-color: var(--surface); color: var(--ink); }
+  .chip-upload { background: var(--on-night); border-color: var(--on-night); color: var(--ink); }
+  /* 手机上「上传照片」独占一行，三个示例场景排在下面一行 */
+  .chip-upload { flex: 1 1 100%; justify-content: center; }
+  @media (min-width: 600px) {
+    .chip-upload { flex: 0 0 auto; justify-content: flex-start; }
+  }
+  .demo-fields { display: grid; gap: var(--s-3); }
+  .field { display: grid; gap: 6px; }
+  .field label { font-size: var(--fs-caption); letter-spacing: 0.08em; color: var(--on-night-soft); }
+  .field input {
+    width: 100%;
+    min-width: 0;
+    height: 48px;
+    padding: 0 var(--s-4);
+    border: 1px solid var(--on-night-faint);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--on-night);
+    transition: border-color var(--dur-fast) var(--ease);
+  }
+  .field input:focus-visible { outline-offset: 0; border-color: var(--accent); --focus: var(--accent); }
+  .demo-time {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--s-2);
+    font-size: var(--fs-caption);
+    letter-spacing: 0.02em;
+    color: var(--on-night-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .demo-note { margin-top: var(--s-3); text-align: center; font-size: var(--fs-small); color: var(--on-night-soft); }
+
+  /* ─── 段落标题 ─── */
+  .section-head { display: grid; gap: var(--s-3); max-width: 620px; margin-bottom: var(--s-6); }
+  .eyebrow { font-size: var(--fs-caption); font-weight: 500; letter-spacing: 0.1em; color: var(--muted); }
+
+  /* ─── 三步 ─── */
+  .steps { padding: var(--s-8) 0; }
+  .step-grid { display: grid; gap: var(--s-4); }
+  .step {
+    display: grid;
+    gap: var(--s-3);
+    align-content: start;
+    padding: var(--s-5);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .step-num { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; line-height: 1; color: var(--ink); }
+  .step-visual { margin-top: var(--s-2); }
+  .figcap { margin-top: var(--s-2); font-size: var(--fs-small); color: var(--muted); }
+  .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
+  .thumb { aspect-ratio: 3 / 4; border-radius: var(--radius-sm); overflow: hidden; background: var(--night); }
+  .thumb canvas { width: 100%; height: 100%; }
+  .cfg { display: grid; gap: var(--s-2); }
+  .cfg-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: var(--s-3);
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .cfg-row dt { font-size: var(--fs-small); color: var(--muted); }
+  .cfg-row dd { font-size: var(--fs-body); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .cfg-row small { display: block; font-size: var(--fs-caption); font-weight: 400; color: var(--muted); }
+  .files { display: grid; gap: var(--s-2); }
+  .file {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    gap: var(--s-3);
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    font-size: var(--fs-small);
+    font-weight: 500;
+  }
+  .file .icon { color: var(--muted); }
+  .file span:last-child { font-weight: 400; color: var(--muted); }
+  .nowrap { white-space: nowrap; }
+  .step-text { display: grid; gap: var(--s-3); align-content: start; }
+  .phone-fig { width: 100%; max-width: 400px; margin: 0 auto; }
+  .phone-fig .figcap { text-align: center; }
+  .footer-side { display: grid; gap: var(--s-2); justify-items: start; }
+
+  /* ─── 工作群对比 ─── */
+  .chat { padding: var(--s-8) 0; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .chat-grid { display: grid; gap: var(--s-6); }
+  .chat-copy { display: grid; gap: var(--s-4); align-content: start; justify-items: start; }
+  .seg { display: inline-grid; grid-auto-flow: column; overflow: hidden; width: max-content; border: 1px solid var(--control); border-radius: var(--radius-sm); }
+  .seg button { min-height: 44px; padding: 0 var(--s-5); border: none; background: var(--surface); color: var(--ink-soft); font-weight: 500; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-night); }
+  .phone { width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; background: var(--bg); border: 1px solid var(--border); border-radius: 24px; }
+  .phone-bar { padding: var(--s-3) var(--s-4); background: var(--surface); border-bottom: 1px solid var(--border); text-align: center; font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+  .phone-body { display: grid; gap: var(--s-3); align-content: start; padding: var(--s-4); }
+  .msg { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--s-2); align-items: start; }
+  .msg-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius-sm); font-size: var(--fs-small); font-weight: 600; }
+  .avatar-a { background: var(--ink); color: var(--on-night); }
+  .avatar-b { background: var(--accent-soft); color: var(--ink); }
+  .msg-body { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+  .msg-name { font-size: var(--fs-caption); color: var(--muted); }
+  .msg-text { max-width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); }
+  .msg-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); width: min(100%, 272px); }
+  .msg-photos canvas { width: 100%; aspect-ratio: 3 / 4; border-radius: 6px; background: var(--night); }
+
+  /* ─── 放心用 ─── */
+  .trust { padding: var(--s-8) 0; }
+  .trust-grid { display: grid; gap: var(--s-5); }
+  .trust-item { display: grid; gap: var(--s-2); align-content: start; }
+  .trust-item .icon { width: 28px; height: 28px; color: var(--ink); }
+  .trust-item h3 { font-size: var(--fs-body); }
+  .trust-item p { font-size: var(--fs-small); }
+
+  /* ─── 价格 ─── */
+  .pricing { padding: var(--s-8) 0; background: var(--surface); border-top: 1px solid var(--border); }
+  .pricing .section-head { margin-left: auto; margin-right: auto; text-align: center; justify-items: center; }
+  .tiers { display: grid; gap: var(--s-4); max-width: 880px; margin: var(--s-5) auto 0; }
+  .tier { position: relative; display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); border: 1px solid var(--border); border-radius: var(--radius); }
+  .tier.featured { border-color: var(--accent); }
+  .tier-tab {
+    position: absolute;
+    top: 0;
+    left: var(--s-5);
+    transform: translateY(-50%);
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--ink);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+  .tier-name { font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
+  .tier-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--s-2); font-family: var(--font-display); font-size: clamp(36px, 4.4vw, 48px); font-weight: 700; line-height: 1; letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tier-price small { font-family: var(--font-body); font-size: var(--fs-small); font-weight: 400; letter-spacing: 0; color: var(--muted); }
+  .punches { display: flex; align-items: center; gap: var(--s-2); }
+  .punch { width: 20px; height: 20px; border: 2px solid var(--control); border-radius: 50%; }
+  .punches span:last-child { margin-left: var(--s-1); font-size: var(--fs-small); color: var(--ink-soft); }
+  .tier ul { display: grid; gap: var(--s-2); flex: 1; }
+  .tier li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: var(--s-2); align-items: start; font-size: var(--fs-body); color: var(--ink-soft); }
+  .tier li .icon { color: var(--ink); margin-top: 3px; }
+  .tier-lead { font-size: var(--fs-small); font-weight: 600; color: var(--ink); }
+  .buy-title { max-width: 880px; margin: var(--s-7) auto 0; font-size: var(--fs-h3); }
+  .buy-steps { display: grid; gap: var(--s-4); max-width: 880px; margin: var(--s-4) auto 0; }
+  .buy-step { display: grid; gap: var(--s-2); align-content: start; padding-top: var(--s-4); border-top: 2px solid var(--border); }
+  .buy-step b { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 700; color: var(--ink); }
+  .buy-step h3 { font-size: var(--fs-body); }
+  .buy-step p { font-size: var(--fs-small); }
+  .buy-note { max-width: 880px; margin: var(--s-5) auto 0; font-size: var(--fs-small); color: var(--muted); }
+
+  /* ─── 常见问题 ─── */
+  .faq { padding: var(--s-8) 0; }
+  .faq-grid { display: grid; gap: var(--s-5); }
+  .faq-list { display: grid; gap: var(--s-2); }
+  .faq-list details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .faq-list summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    min-height: 56px;
+    padding: var(--s-3) var(--s-4);
+    list-style: none;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .faq-list summary::-webkit-details-marker { display: none; }
+  .faq-list summary .icon { color: var(--muted); transition: transform var(--dur) var(--ease); }
+  .faq-list details[open] summary .icon { transform: rotate(180deg); }
+  .faq-list .a { padding: 0 var(--s-4) var(--s-4); }
+
+  /* ─── 收尾行动 ─── */
+  .closing { padding: var(--s-8) 0; background: var(--accent); color: var(--ink); text-align: center; }
+  .closing-inner { display: grid; gap: var(--s-4); justify-items: center; }
+  .closing h2 { color: var(--ink); font-size: clamp(28px, 4vw, 44px); letter-spacing: -0.02em; }
+  .closing p { color: var(--ink); }
+  .closing-status { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--fs-small); color: var(--ink); }
+
+  /* ─── footer ─── */
+  .footer { border-top: 1px solid var(--border); }
+  .footer-inner { display: grid; gap: var(--s-4); padding-top: var(--s-6); padding-bottom: var(--s-6); }
+  .footer-brand { display: grid; gap: var(--s-2); color: var(--ink); font-weight: 600; }
+  .footer-links { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-5); }
+  /* 链接上下加内边距扩大可点区域，再用负外边距抵消，视觉位置不变 */
+  .footer-links a { display: inline-block; padding: var(--s-2) 0; margin: calc(-1 * var(--s-2)) 0; font-size: var(--fs-small); text-decoration: none; }
+  .footer-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .footer small { font-size: var(--fs-caption); color: var(--muted); }
+
+  /* ─── 购买弹窗 ─── */
+  .dialog { width: min(92vw, 440px); padding: 0; border: none; border-radius: var(--radius); background: var(--surface); color: var(--ink-soft); }
+  .dialog::backdrop { background: rgba(8, 36, 67, 0.6); }
+  .dialog-inner { display: grid; gap: var(--s-4); padding: var(--s-5); }
+  .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); }
+  .dialog-head h2 { font-size: var(--fs-h3); }
+  .icon-btn { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: none; border-radius: 50%; background: var(--bg); color: var(--ink); }
+  .dialog-price { display: flex; align-items: baseline; gap: var(--s-2); font-family: var(--font-display); font-size: 40px; font-weight: 700; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .dialog-price small { font-family: var(--font-body); font-size: var(--fs-small); font-weight: 400; color: var(--muted); }
+  .pay-qr { width: min(100%, 240px); margin: 0 auto; }
+  .pay-setup {
+    display: grid;
+    gap: var(--s-2);
+    justify-items: center;
+    padding: var(--s-4);
+    border: 1px dashed var(--control);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-size: var(--fs-small);
+    color: var(--muted);
+  }
+  .pay-setup .icon { width: 28px; height: 28px; color: var(--muted); }
+  .dialog ol { display: grid; gap: var(--s-2); counter-reset: step; }
+  .dialog ol li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: var(--s-2); font-size: var(--fs-small); counter-increment: step; }
+  .dialog ol li::before { content: counter(step); font-family: var(--font-display); font-weight: 700; color: var(--ink); }
+
+  /* ─── 响应式 ─── */
+  @media (min-width: 600px) {
+    .demo-fields { grid-template-columns: 1fr 1fr; }
+    .trust-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 760px) {
+    .tiers { grid-template-columns: 1fr 1fr; }
+    .buy-steps { grid-template-columns: repeat(3, 1fr); }
+    .faq-grid { grid-template-columns: minmax(0, 320px) minmax(0, 1fr); align-items: start; }
+    .faq-grid .section-head { position: sticky; top: 84px; margin-bottom: 0; }
+    .footer-inner { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  }
+  @media (min-width: 900px) {
+    .nav { display: flex; }
+    .step-grid { grid-template-columns: repeat(12, 1fr); }
+    .step:nth-child(1) { grid-column: span 5; }
+    .step:nth-child(2) { grid-column: span 7; }
+    .step:nth-child(3) { grid-column: span 12; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+    .chat-grid { grid-template-columns: minmax(0, 1fr) 400px; align-items: center; }
+    .trust-grid { grid-template-columns: repeat(4, 1fr); }
+    .steps, .chat, .trust, .pricing, .faq, .closing { padding-top: var(--s-9); padding-bottom: var(--s-9); }
+  }
+  @media (min-width: 1024px) {
+    .hero { padding: var(--s-6) 0 var(--s-8); }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--s-7); align-items: center; }
+    .hero-copy { display: grid; gap: var(--s-5); align-content: center; }
+    .clockchip, .hero h1, .demo, .hero .lede, .hero-facts { order: 0; }
+    .hero .lede { font-size: var(--fs-h3); line-height: 1.6; }
+    .hero-facts { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
+    .demo { max-width: 400px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#demo">跳到页内试用</a>
+
+<!-- 图标：全部手绘线条 SVG -->
+<svg hidden aria-hidden="true" focusable="false">
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5.5c0 4.4 3 7.6 7 9.5 4-1.9 7-5.1 7-9.5V6l-7-3Z"/><path d="m9 12 2.2 2.2 3.8-4"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12" rx="1.8"/><path d="M9 20h6M12 16.5V20"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 5h3"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L11 21l8-10.5h-6L13 3Z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4.5 17 4.5-4 3.5 3 3-2.5 4 3.5"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z"/><path d="M4 7l8 4 8-4M12 11v9"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h3v3h-3zM20 14v2M17 20h3M14 19v1"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+</svg>
+
+<header class="topbar" id="topbar" data-od-id="topnav">
+  <div class="wrap topbar-inner">
+    <a class="logo" href="#top" aria-label="水印相机，回到页面顶部">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="17" rx="3.5"/><circle cx="14.5" cy="9.5" r="4.2"/><circle cx="19.3" cy="5.9" r="0.4" fill="currentColor" stroke="none"/><path d="M5.5 15.5h4M5.5 18h6"/></svg>
+      水印相机
+    </a>
+    <nav class="nav" aria-label="页面导航">
+      <a href="#how">怎么用</a>
+      <a href="#group">发到群里</a>
+      <a href="#pricing">价格</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <a class="btn btn-white btn-sm" href="#demo">免费试用</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ─── HERO：标题 + 页内试用 ─── -->
+  <section class="hero" aria-labelledby="heroTitle" data-od-id="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="clockchip" aria-hidden="true">
+          <span class="tab">打卡记录</span>
+          <span class="time" data-live="time">09:13</span>
+        </span>
+        <h1 id="heroTitle">巡店照片，<span class="nowrap">自动盖上</span><wbr><span class="nowrap">时间、地点、备注</span></h1>
+        <p class="lede">微信里点开链接就能用，不装 App、不用注册。照片只在你自己的手机上处理，盖好水印直接发工作群。</p>
+        <ul class="hero-facts">
+          <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>免费版每天可保存 <b class="num" data-free>5</b> 张</span></li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span>照片不上传服务器</span></li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-monitor"/></svg><span>苹果、安卓、电脑都能用</span></li>
+        </ul>
+      </div>
+
+      <div class="demo" id="demo" tabindex="-1" data-od-id="demo">
+        <div class="demo-frame" id="demoFrame">
+          <canvas id="demoCanvas" role="img" aria-label="带水印的巡店照片示例">你的浏览器不支持画布，看不到演示。</canvas>
+          <span class="demo-badge"><i aria-hidden="true"></i>实时预览</span>
+        </div>
+        <form class="demo-panel" id="demoForm" aria-label="试用：修改水印">
+          <p class="demo-hint" id="demoHint" role="status"></p>
+          <div class="chips" role="group" aria-label="换一张照片">
+            <button type="button" class="chip chip-upload" id="demoUpload"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>上传照片</button>
+            <button type="button" class="chip" data-scene="visit" aria-pressed="true">门店拜访</button>
+            <button type="button" class="chip" data-scene="display" aria-pressed="false">陈列检查</button>
+            <button type="button" class="chip" data-scene="stock" aria-pressed="false">库存盘点</button>
+            <input type="file" id="demoFile" accept="image/*" hidden>
+          </div>
+          <div class="demo-fields">
+            <div class="field">
+              <label for="demoAddr">地点</label>
+              <input id="demoAddr" type="text" autocomplete="off" maxlength="24" value="泉州市・示范门店">
+            </div>
+            <div class="field">
+              <label for="demoNote">备注</label>
+              <input id="demoNote" type="text" autocomplete="off" maxlength="20" value="门店拜访">
+            </div>
+          </div>
+          <p class="demo-time"><span>时间 <span data-live="time">09:13</span> 自动同步</span><span data-live="date">2026.01.01 星期四</span></p>
+          <a class="btn btn-accent btn-block" id="demoSave" href="app.html">保存这张图</a>
+          <p class="demo-note">免费版每天可保存 <span data-free>5</span> 张 · <a class="link-u" href="#pricing"><span data-price>¥10</span> 解锁不限次</a></p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 三步 ─── -->
+  <section class="steps" id="how" aria-labelledby="howTitle" data-od-id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">怎么用</span>
+        <h2 id="howTitle">传照片、看一眼、保存，三步出图</h2>
+        <p>不用学，打开链接照着做就行。整套照片共用同一套水印，改一次全部生效。</p>
+      </div>
+      <ol class="step-grid">
+        <li class="step" data-od-id="step-01">
+          <span class="step-num" aria-hidden="true">01</span>
+          <h3>传照片，一次多选</h3>
+          <p>把这家店拍的照片一次选中，JPG、PNG 都行，单张最大 10MB。</p>
+          <div class="step-visual">
+            <div class="thumbs" role="img" aria-label="示意：同一次拜访的三张照片，盖着同一套水印">
+              <div class="thumb"><canvas data-batch="visit"></canvas></div>
+              <div class="thumb"><canvas data-batch="display"></canvas></div>
+              <div class="thumb"><canvas data-batch="stock"></canvas></div>
+            </div>
+            <p class="figcap">门店、货架、库存三张照片，共用一套水印</p>
+          </div>
+        </li>
+        <li class="step" data-od-id="step-02">
+          <span class="step-num" aria-hidden="true">02</span>
+          <h3>水印自动填好，地点点一下</h3>
+          <p>时间、日期每分钟自动同步当前值。点「自动定位」填入地址，常用地址会记住，备注点模板即填。</p>
+          <div class="step-visual">
+            <dl class="cfg" role="img" aria-label="示意：工具里的水印配置，包含时间、日期、地点、备注四项">
+              <div class="cfg-row"><dt>时间</dt><dd data-live="time">09:13</dd></div>
+              <div class="cfg-row"><dt>日期</dt><dd data-live="date">2026.01.01 星期四</dd></div>
+              <div class="cfg-row"><dt>地点</dt><dd>泉州市・示范门店</dd></div>
+              <div class="cfg-row"><dt>备注</dt><dd>门店拜访<small>点一下备注模板自动填入</small></dd></div>
+            </dl>
+          </div>
+        </li>
+        <li class="step" data-od-id="step-03">
+          <div class="step-text">
+            <span class="step-num" aria-hidden="true">03</span>
+            <h3>保存，发到工作群</h3>
+            <p>手机上长按图片保存到相册，电脑上直接下载。整店的照片可以打包成一个压缩包，一次带走。</p>
+            <p class="figcap">导出时自动压缩到长边 1920 像素，文件更小，发群更快。</p>
+          </div>
+          <div class="step-visual">
+            <ul class="files" aria-label="示意：保存下来的文件">
+              <li class="file"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>打卡水印_1.jpg</span><span>单张保存</span></li>
+              <li class="file"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>打卡水印_2.jpg</span><span>单张保存</span></li>
+              <li class="file"><svg class="icon" aria-hidden="true"><use href="#i-box"/></svg><span>打卡水印_打包_3张.zip</span><span>整套打包</span></li>
+            </ul>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ─── 发到工作群：对比 ─── -->
+  <section class="chat" id="group" aria-labelledby="groupTitle" data-od-id="group">
+    <div class="wrap chat-grid">
+      <div class="chat-copy">
+        <span class="eyebrow">发到工作群</span>
+        <h2 id="groupTitle"><span class="nowrap">哪家店、几点拍的，</span><wbr><span class="nowrap">照片上直接写着</span></h2>
+        <p>全组用同一套水印格式，谁发的、在哪家店、几点到的，不用再补一句话。点下面的切换，对比看看。</p>
+        <div class="seg" role="group" aria-label="切换对比">
+          <button type="button" data-mark="0" aria-pressed="false">没加水印</button>
+          <button type="button" data-mark="1" aria-pressed="true">加了水印</button>
+        </div>
+      </div>
+      <figure class="phone-fig">
+        <div class="phone">
+          <div class="phone-bar">巡店打卡群</div>
+          <div class="phone-body">
+            <div class="msg">
+              <span class="msg-avatar avatar-a" aria-hidden="true">陈</span>
+              <div class="msg-body">
+                <span class="msg-name">陈经理</span>
+                <p class="msg-text">今天那两家店的陈列和库存，拍照发群里</p>
+              </div>
+            </div>
+            <div class="msg">
+              <span class="msg-avatar avatar-b" aria-hidden="true">林</span>
+              <div class="msg-body">
+                <span class="msg-name">小林</span>
+                <div class="msg-photos">
+                  <canvas id="chatA" role="img" aria-label="小林发的第一张照片">工作群照片示意</canvas>
+                  <canvas id="chatB" role="img" aria-label="小林发的第二张照片">工作群照片示意</canvas>
+                </div>
+              </div>
+            </div>
+            <div class="msg">
+              <span class="msg-avatar avatar-a" aria-hidden="true">陈</span>
+              <div class="msg-body">
+                <span class="msg-name">陈经理</span>
+                <p class="msg-text" data-plain hidden>这是哪家店？几点拍的？</p>
+                <p class="msg-text" data-marked>收到</p>
+              </div>
+            </div>
+            <div class="msg">
+              <span class="msg-avatar avatar-b" aria-hidden="true">林</span>
+              <div class="msg-body">
+                <span class="msg-name">小林</span>
+                <p class="msg-text" data-plain hidden>第一家泉州市，九点多；第二家晋江市，十点半</p>
+                <p class="msg-text" data-marked>时间、地点、备注都在图上</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption class="figcap">场景示意，人名与门店均为虚构</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ─── 放心用 ─── -->
+  <section class="trust" aria-labelledby="trustTitle" data-od-id="trust">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">放心用</span>
+        <h2 id="trustTitle"><span class="nowrap">一个链接的事，</span><wbr><span class="nowrap">不占手机，不收照片</span></h2>
+      </div>
+      <ul class="trust-grid">
+        <li class="trust-item">
+          <svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg>
+          <h3>不装 App</h3>
+          <p>微信里点开链接就能用。用浏览器打开后，还能添加到桌面，下次一点就进。</p>
+        </li>
+        <li class="trust-item">
+          <svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg>
+          <h3>不用注册</h3>
+          <p>没有账号，不填手机号，打开就是工具。</p>
+        </li>
+        <li class="trust-item">
+          <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>
+          <h3>照片不上传</h3>
+          <p>加水印、压缩都在你自己的手机或电脑上完成。</p>
+        </li>
+        <li class="trust-item">
+          <svg class="icon" aria-hidden="true"><use href="#i-monitor"/></svg>
+          <h3>苹果、安卓、电脑通用</h3>
+          <p>手机长按图片保存到相册，电脑直接下载文件。</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ─── 价格 ─── -->
+  <section class="pricing" id="pricing" aria-labelledby="pricingTitle" data-od-id="pricing">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">价格</span>
+        <h2 id="pricingTitle">先免费用，顺手了再买断</h2>
+        <p>没有月费，也不会自动续费。</p>
+      </div>
+      <div class="tiers">
+        <div class="tier" data-od-id="tier-free">
+          <h3 class="tier-name">免费版</h3>
+          <p class="tier-price">¥0</p>
+          <div class="punches" role="img" aria-label="每天可保存 5 张">
+            <i class="punch" aria-hidden="true"></i><i class="punch" aria-hidden="true"></i><i class="punch" aria-hidden="true"></i><i class="punch" aria-hidden="true"></i><i class="punch" aria-hidden="true"></i>
+            <span>每天 <b class="num" data-free>5</b> 张<br>次日 0 点恢复</span>
+          </div>
+          <ul>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>多张照片共用一套水印</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>时间、日期自动同步</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>一键定位，备注模板</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>单张保存、整套打包</span></li>
+          </ul>
+          <a class="btn btn-outline" href="#demo">免费试用</a>
+        </div>
+        <div class="tier featured" data-od-id="tier-paid">
+          <span class="tier-tab">推荐</span>
+          <h3 class="tier-name">买断版</h3>
+          <p class="tier-price"><span data-price>¥10</span><small>一次付清</small></p>
+          <p class="tier-lead">保存不限次数</p>
+          <ul>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>保存不限次数</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>含免费版全部功能</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>一次付费，无续费</span></li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>激活码解锁，换设备重输即可</span></li>
+          </ul>
+          <button type="button" class="btn btn-accent" data-buy>立即购买</button>
+        </div>
+      </div>
+
+      <h3 class="buy-title">购买与解锁</h3>
+      <ol class="buy-steps">
+        <li class="buy-step"><b aria-hidden="true">1</b><p><strong>付款</strong>　点「立即购买」，完成支付。</p></li>
+        <li class="buy-step"><b aria-hidden="true">2</b><p><strong>收到激活码</strong>　付款后你会收到激活码，记得保存。</p></li>
+        <li class="buy-step"><b aria-hidden="true">3</b><p><strong>解锁</strong>　打开工具，把激活码粘贴到保存按钮旁，立即不限次。</p></li>
+      </ol>
+      <p class="buy-note">换手机或清除微信缓存后，重新输入一次激活码就能恢复，不用再付费。</p>
+    </div>
+  </section>
+
+  <!-- ─── 常见问题 ─── -->
+  <section class="faq" id="faq" aria-labelledby="faqTitle" data-od-id="faq">
+    <div class="wrap faq-grid">
+      <div class="section-head">
+        <span class="eyebrow">常见问题</span>
+        <h2 id="faqTitle">买之前，先说清楚</h2>
+        <p>还有疑问？<a class="link-u" href="#demo">先免费试用</a>，用一遍就懂。</p>
+      </div>
+      <div class="faq-list">
+        <details>
+          <summary><span>「每天 5 张」怎么算？</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="a"><p>每保存一张水印图算一张，预览和修改不计数。一次打包保存多张，按张数计算。每天 0 点自动恢复 5 张。</p></div>
+        </details>
+        <details>
+          <summary><span>次数记在哪里？换手机还有吗？</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="a"><p>记在你当前用的手机浏览器或微信里。清除缓存或换手机后，免费次数会重新计算；已购买的买断版重新输入激活码即可恢复，所以激活码要保存好。</p></div>
+        </details>
+        <details>
+          <summary><span>照片会被上传吗？</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="a"><p>不会。加水印和压缩都在你的手机或电脑上完成，照片不经过服务器。只有点「自动定位」时，会把当前的经纬度发给地图服务查询地址文字，这一步不涉及照片。</p></div>
+        </details>
+        <details>
+          <summary><span>微信里怎么把图存下来？</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="a"><p>手机上点「下载当前」后长按图片，选「保存图片」；电脑上会直接下载文件。同一次的多张照片可以打包成一个压缩包。</p></div>
+        </details>
+        <details>
+          <summary><span>时间和地点可以手动改吗？</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="a"><p>可以。时间和日期默认自动同步当前时间，也能手动修改，比如回办公室后补当天的照片；地点可以自动定位，也可以手动输入或从历史地址里选。</p></div>
+        </details>
+        <details>
+          <summary><span>付款后怎么解锁？</span><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+          <div class="a"><p>付款后你会收到一串激活码。打开工具，把激活码粘贴到保存按钮旁的输入框，立刻不限次数。一次付费，后续不再收费。</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 收尾行动 ─── -->
+  <section class="closing" aria-labelledby="closingTitle" data-od-id="closing-cta">
+    <div class="wrap closing-inner">
+      <h2 id="closingTitle">先传一张试试，不花钱</h2>
+      <p class="closing-status"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span id="quotaStatus">今天还能免费保存 5 张，打开就能用</span></p>
+      <a class="btn btn-white" href="app.html">打开水印相机，免费试用</a>
+    </div>
+  </section>
+</main>
+
+<footer class="footer" data-od-id="footer">
+  <div class="wrap footer-inner">
+  <div class="footer-brand">
+    <a class="logo" href="#top">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="17" rx="3.5"/><circle cx="14.5" cy="9.5" r="4.2"/><circle cx="19.3" cy="5.9" r="0.4" fill="currentColor" stroke="none"/><path d="M5.5 15.5h4M5.5 18h6"/></svg>
+      水印相机
+    </a>
+    <small>巡店打卡水印工具</small>
+  </div>
+  <div class="footer-side">
+    <div class="footer-links">
+      <a href="app.html">打开工具</a>
+      <a href="#pricing">价格</a>
+      <a href="#faq">常见问题</a>
+    </div>
+    <small>照片只在你的设备上处理，不上传</small>
+  </div>
+  </div>
+</footer>
+
+<!-- 购买弹窗：收款方式在页面底部的 CONFIG 里配置 -->
+<dialog class="dialog" id="buyDialog" aria-labelledby="buyTitle">
+  <div class="dialog-inner">
+    <div class="dialog-head">
+      <div>
+        <h2 id="buyTitle">购买买断版</h2>
+        <p class="dialog-price"><span data-price>¥10</span><small>一次付清 · 保存不限次数</small></p>
+      </div>
+      <button type="button" class="icon-btn" id="buyClose" aria-label="关闭购买窗口"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div id="payArea"></div>
+    <ol>
+      <li><span><strong>付款</strong>　按上面的方式完成支付。</span></li>
+      <li><span><strong>收激活码</strong>　付款后你会收到一串激活码，请保存好。</span></li>
+      <li><span><strong>解锁</strong>　打开工具，把激活码粘贴到保存按钮旁，立即不限次。</span></li>
+    </ol>
+  </div>
+</dialog>
+<noscript><p class="wrap">页内的照片演示需要开启 JavaScript 才能显示。</p></noscript>
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════ 可改的配置 ══════════════ */
+  const CONFIG = {
+    price: 10,            // 买断价（元），改这里全页生效
+    freePerDay: 5,        // 免费版每天可保存的张数，要和 app.html 里的 DAILY_FREE 一致
+    toolUrl: 'app.html',  // 公开版工具页
+    payUrl: '',           // 支付链接（支付平台的商品页）。填了之后，「立即购买」弹窗里出现「去支付」按钮
+    payQr: ''             // 收款码图片（放在本页同一目录的图片路径）。没有支付链接时，弹窗里显示这张图
+  };
+
+  /* 和工具页 app.html 共用的本地存储键名，不要各改各的 */
+  const QUOTA_KEY = 'wm_quota_v1';
+  const UNLOCKED_KEY = 'wm_unlocked_v1';
+  const HANDOFF_KEY = 'wm_handoff_v1';
+
+  const $ = (sel, el) => (el || document).querySelector(sel);
+  const $$ = (sel, el) => Array.prototype.slice.call((el || document).querySelectorAll(sel));
+  const pad = (n) => String(n).padStart(2, '0');
+  const WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  function nowParts(d) {
+    return {
+      time: pad(d.getHours()) + ':' + pad(d.getMinutes()),
+      date: d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()) + ' ' + WEEK[d.getDay()]
+    };
+  }
+
+  /* ══════════════ 水印引擎 ══════════════ */
+  /* 画法和工具页 app.html 保持一致：这里的每一行都对应工具页里的同名函数，
+     改了这里，页面上演示的效果就和工具实际出的图不一样了。 */
+  const SANS = '"PingFang SC","HarmonyOS Sans SC","MiSans","Noto Sans CJK SC","Microsoft YaHei",sans-serif';
+  const SERIF = '"Songti SC","Noto Serif CJK SC","Source Han Serif SC","SimSun",serif';
+  const CERT_TEXT = '水印相机已确保时间不可篡改';
+  const LOGO_SRC = 'data:image/png;base64,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';
+
+  const logoImg = new Image();
+  let logoReady = false;
+  logoImg.onload = function () { logoReady = true; repaintAll(); };
+  logoImg.src = LOGO_SRC;
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r.tl, y);
+    if (r.tr === 0) ctx.lineTo(x + w, y);
+    else { ctx.lineTo(x + w - r.tr, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr); }
+    if (r.br === 0) ctx.lineTo(x + w, y + h);
+    else { ctx.lineTo(x + w, y + h - r.br); ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h); }
+    if (r.bl === 0) ctx.lineTo(x, y + h);
+    else { ctx.lineTo(x + r.bl, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl); }
+    if (r.tl === 0) ctx.lineTo(x, y);
+    else { ctx.lineTo(x, y + r.tl); ctx.quadraticCurveTo(x, y, x + r.tl, y); }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawClockCard(ctx, time, x, y, s) {
+    const cardWidth = 82 * s, cardHeight = 65 * s;
+    const titleBoxHeight = 28 * s, titleRadius = 4 * s;
+    ctx.fillStyle = '#4BBBF8';
+    roundRect(ctx, x, y - cardHeight, cardWidth, titleBoxHeight, { tl: titleRadius, tr: titleRadius, br: 0, bl: 0 });
+    const titleFontSize = Math.floor(14 * s);
+    ctx.font = titleFontSize + 'px ' + SANS;
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = (3 * s) + 'px';
+    ctx.fillText('打卡记录', x + cardWidth / 2, y - cardHeight + titleBoxHeight / 2);
+    ctx.letterSpacing = '0px';
+    const timeBoxHeight = 37 * s, timeRadius = 4 * s;
+    ctx.fillStyle = 'white';
+    roundRect(ctx, x, y - cardHeight + titleBoxHeight, cardWidth, timeBoxHeight, { tl: 0, tr: 0, br: timeRadius, bl: timeRadius });
+    drawTimeText(ctx, time, x + 6 * s, y - cardHeight + titleBoxHeight, timeBoxHeight, s);
+  }
+
+  function drawTimeText(ctx, time, x, y, timeBoxHeight, s) {
+    const fontSize = Math.floor(24 * s);
+    const textY = y + timeBoxHeight / 2;
+    ctx.font = '700 ' + fontSize + 'px ' + SANS;
+    ctx.fillStyle = '#003366';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const parts = String(time).split(/([:])/);
+    let cx = x;
+    ctx.fillText(parts[0], cx, textY);
+    cx += ctx.measureText(parts[0]).width;
+    if (parts.length > 2) {
+      const colonSpacing = fontSize * 0.1;
+      cx += colonSpacing;
+      ctx.fillText(':', cx, textY);
+      cx += ctx.measureText(':').width + colonSpacing;
+      ctx.fillText(parts[2], cx, textY);
+    }
+  }
+
+  function drawTextList(ctx, cfg, x, y, s) {
+    const fontSize = Math.floor(13 * s);
+    ctx.font = fontSize + 'px ' + SANS;
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const lineHeight = 1.6 * fontSize;
+    let cy = y + 3 * s;
+    ctx.fillText(cfg.date, x, cy);
+    cy += lineHeight;
+    const address = cfg.address;
+    if (address.includes('·')) {
+      const parts = address.split('·');
+      ctx.fillText(parts[0], x, cy);
+      let cx = x + ctx.measureText(parts[0]).width;
+      cx += fontSize * 0.3;
+      ctx.fillText('·' + parts[1], cx, cy);
+    } else {
+      ctx.fillText(address, x, cy);
+    }
+    cy += lineHeight;
+    const quoteSize = Math.floor(16 * s);
+    ctx.font = 'bold ' + quoteSize + 'px ' + SANS;
+    ctx.fillStyle = '#00A3FF';
+    ctx.fillText('"', x, cy - 2 * s);
+    const quoteWidth = ctx.measureText('"').width;
+    ctx.font = fontSize + 'px ' + SANS;
+    ctx.fillStyle = 'white';
+    ctx.fillText(cfg.note, x + quoteWidth + 2 * s, cy);
+  }
+
+  function drawCertText(ctx, w, h, s, k) {
+    const fontSize = Math.floor(12 * s);
+    ctx.font = fontSize + 'px ' + SANS;
+    ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const x = w * 0.035, y = h * 0.94;
+    const circleSize = 12 * s;
+    const cx = x + circleSize / 2;
+    const cy = y + circleSize / 2 + 2.3 * s;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 0.3 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleSize / 2 * 1.17, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 0.5 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleSize / 2, 0, Math.PI * 2);
+    ctx.stroke();
+    const certFontSize = Math.floor(7.8 * s);
+    ctx.font = certFontSize + 'px ' + SANS;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillText('证', cx, cy + certFontSize * 0.05);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = fontSize + 'px ' + SERIF;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 4 * k;
+    ctx.shadowOffsetX = k;
+    ctx.shadowOffsetY = k;
+    ctx.fillText(CERT_TEXT, x + circleSize + 6 * s, y + 10 * k);
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  function drawLogo(ctx, w, h, s) {
+    if (!logoReady) return;
+    const lh = Math.floor(20 * s);
+    const lw = Math.floor(lh * logoImg.naturalWidth / logoImg.naturalHeight);
+    const padding = 10 * s;
+    ctx.drawImage(logoImg, w - padding - lw, h - padding - lh, lw, lh);
+  }
+
+  // srcShort：原图短边的像素数。
+  // 工具页是按原图尺寸画的，里面有 5 个按原图像素写死的数（卡片上提 30、认证文字下移 10、阴影 4/1/1）。
+  // 这里的画布比原图小，所以先算出「画布 ÷ 原图」的比例 k，把这 5 个数换算过来，才和工具页出的图一个样。
+  function renderWatermark(ctx, w, h, cfg, srcShort) {
+    const s = 2 * (Math.min(w, h) / 792);
+    const k = Math.min(w, h) / (srcShort || Math.min(w, h));
+    ctx.textBaseline = 'alphabetic';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const x = w * 0.035;
+    const y = h * 0.94 - 65 * s;
+    drawClockCard(ctx, cfg.time, x, y - 30 * k, s);
+    drawTextList(ctx, cfg, x, y, s);
+    drawCertText(ctx, w, h, s, k);
+    drawLogo(ctx, w, h, s);
+  }
+
+  /* ══════════════ 示例照片：三张矢量插画 ══════════════ */
+  const rect = (x, y, w, h, fill, rx, extra) =>
+    '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (rx || 0) + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>';
+  const DEFS = '<defs>'
+    + '<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9FD3F2"/><stop offset="1" stop-color="#EAF6FD"/></linearGradient>'
+    + '<linearGradient id="sh" x1="0" y1="1" x2="0.9" y2="0.1"><stop offset="0" stop-color="#051729" stop-opacity="0.84"/><stop offset="0.45" stop-color="#051729" stop-opacity="0.44"/><stop offset="1" stop-color="#051729" stop-opacity="0"/></linearGradient>'
+    + '</defs>';
+  const svgDoc = (inner) =>
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 600 800">' + DEFS + inner
+    + '<rect width="600" height="800" fill="url(#sh)"/></svg>';
+
+  // 门店门头
+  function sceneVisit() {
+    let s = rect(0, 0, 600, 480, 'url(#sky)');
+    s += '<ellipse cx="120" cy="96" rx="72" ry="18" fill="#FFFFFF" opacity=".9"/><ellipse cx="166" cy="84" rx="44" ry="16" fill="#FFFFFF" opacity=".9"/>';
+    s += '<ellipse cx="500" cy="60" rx="60" ry="15" fill="#FFFFFF" opacity=".75"/><ellipse cx="538" cy="50" rx="34" ry="13" fill="#FFFFFF" opacity=".75"/>';
+    s += rect(-20, 310, 150, 180, '#CBE5F4') + rect(470, 270, 150, 220, '#D8ECF8');
+    s += rect(10, 330, 22, 30, '#FFFFFF', 2, 'opacity=".6"') + rect(50, 330, 22, 30, '#FFFFFF', 2, 'opacity=".6"');
+    s += rect(10, 376, 22, 30, '#FFFFFF', 2, 'opacity=".6"') + rect(50, 376, 22, 30, '#FFFFFF', 2, 'opacity=".6"');
+    s += rect(500, 292, 24, 32, '#FFFFFF', 2, 'opacity=".6"') + rect(540, 292, 24, 32, '#FFFFFF', 2, 'opacity=".6"');
+    s += rect(500, 338, 24, 32, '#FFFFFF', 2, 'opacity=".6"') + rect(540, 338, 24, 32, '#FFFFFF', 2, 'opacity=".6"');
+    s += rect(60, 190, 540, 480, '#F4E6D3') + rect(0, 190, 60, 480, '#2F3A45');
+    s += rect(60, 190, 540, 120, '#003366');
+    s += rect(84, 222, 64, 56, '#FFFFFF', 8) + rect(162, 222, 64, 56, '#FFFFFF', 8) + rect(240, 222, 64, 56, '#4BBBF8', 8);
+    s += rect(500, 232, 44, 36, '#E8702A', 6);
+    for (let i = 0; i < 10; i++) {
+      const c = i % 2 ? '#E8702A' : '#FFFFFF';
+      const x = 60 + i * 54;
+      s += rect(x, 310, 54, 42, c) + '<path d="M' + x + ' 352a27 12 0 0 0 54 0Z" fill="' + c + '"/>';
+    }
+    s += rect(64, 388, 300, 262, '#0E2F52');
+    const cols = ['#E8702A', '#F2B705', '#2A9D5C', '#FFFFFF', '#E8702A', '#1D7FC4', '#F2B705', '#D7263D'];
+    [446, 511, 576].forEach(function (y, k) {
+      for (let i = 0; i < 8; i++) s += rect(84 + i * 33, y, 26, 26, cols[(i + k * 3) % 8], 4, 'opacity=".9"');
+      s += rect(76, y + 27, 276, 4, '#FFFFFF', 0, 'opacity=".5"');
+    });
+    s += '<path d="M120 650 230 388h32L152 650Z" fill="#FFFFFF" opacity=".07"/><path d="M200 650 310 388h12L212 650Z" fill="#FFFFFF" opacity=".07"/>';
+    s += rect(64, 388, 300, 262, 'none', 0, 'stroke="#FFFFFF" stroke-opacity=".35" stroke-width="4"');
+    s += rect(396, 388, 134, 282, '#F4E6D3') + rect(408, 400, 110, 270, '#12406E') + rect(496, 520, 8, 44, '#F4E6D3', 4);
+    s += rect(60, 650, 336, 20, '#0B2540');
+    s += rect(0, 670, 600, 46, '#3A4E68') + rect(0, 714, 600, 6, '#556A85') + rect(0, 720, 600, 80, '#16273E');
+    s += rect(452, 604, 84, 66, '#FFFFFF', 6) + rect(464, 614, 60, 38, '#003366', 4);
+    return s;
+  }
+
+  // 货架陈列
+  function pack(t, x, y, w, h, c) {
+    if (t === 'can') {
+      return rect(x + 2, y + 8, w - 4, h - 8, c, 5)
+        + '<ellipse cx="' + (x + w / 2) + '" cy="' + (y + 8) + '" rx="' + ((w - 4) / 2) + '" ry="4" fill="#FFFFFF" opacity=".7"/>'
+        + rect(x + 2, y + 44, w - 4, 28, '#FFFFFF', 0, 'opacity=".85"');
+    }
+    if (t === 'bottle') {
+      return rect(x + w / 2 - 6, y + 4, 12, 10, '#082443', 2)
+        + rect(x + w / 2 - 5, y + 12, 10, 26, c, 2)
+        + rect(x + 3, y + 36, w - 6, h - 36, c, 7)
+        + rect(x + 6, y + 66, w - 12, 30, '#FFFFFF', 2, 'opacity=".85"');
+    }
+    return rect(x, y, w, h, c, 4) + rect(x + 4, y + 36, w - 8, 34, '#FFFFFF', 2, 'opacity=".9"');
+  }
+  function sceneDisplay() {
+    let s = rect(0, 0, 600, 800, '#E9EEF3') + rect(0, 740, 600, 60, '#C3CDD8');
+    s += rect(40, 60, 520, 690, '#1F3552', 10) + rect(52, 72, 496, 666, '#33507A', 4);
+    const shelves = [
+      [['#E8702A', 8, 'box'], ['#F2B705', 8, 'can'], ['#D7263D', 8, 'box']],
+      [['#1D7FC4', 6, 'bottle'], ['#FFFFFF', 10, 'box'], ['#2A9D5C', 6, 'bottle']],
+      [['#0B2540', 8, 'box'], ['#138A8A', 7, 'box'], ['#8B5A2B', 7, 'can']],
+      [['#1F3552', 9, 'box'], ['#6B3F1D', 7, 'can'], ['#0E2F52', 8, 'bottle']]
+    ];
+    shelves.forEach(function (fams, k) {
+      const y = 72 + k * 166;
+      const unit = 496 / fams.reduce(function (n, f) { return n + f[1]; }, 0);
+      let x = 52;
+      fams.forEach(function (f) {
+        const start = x;
+        for (let i = 0; i < f[1]; i++) {
+          s += pack(f[2], x + 3, y + 10, unit - 6, 116, f[0]);
+          x += unit;
+        }
+        s += rect(start + 4, y + 132, 30, 14, '#FFFFFF', 2) + rect(start + 8, y + 137, 14, 4, '#D7263D', 1);
+      });
+      s += rect(52, y + 128, 496, 16, '#C89B6B', 2);
+    });
+    return s;
+  }
+
+  // 仓库库存
+  const carton = (x, y, w, h) =>
+    rect(x, y, w, h, '#C89B6B', 3) + rect(x, y + h - 10, w, 10, '#A9784A', 3) + rect(x + w / 2 - 7, y, 14, h, '#EADBC6')
+    + rect(x + 10, y + 12, 34, 22, '#FFFFFF', 2) + rect(x + 15, y + 19, 24, 3, '#8A94A6') + rect(x + 15, y + 26, 16, 3, '#8A94A6');
+  function sceneStock() {
+    let s = rect(0, 0, 600, 800, '#3A4D63');
+    for (let x = 75; x < 600; x += 75) s += rect(x, 0, 2, 690, '#33455A');
+    s += rect(0, 690, 600, 110, '#1B2836') + rect(0, 690, 600, 6, '#0E1620');
+    s += rect(250, 0, 100, 16, '#0E1A28', 3) + rect(262, 16, 76, 10, '#FFF3C4', 3);
+    s += '<polygon points="150,26 450,26 600,520 0,520" fill="#FFF3C4" opacity=".07"/>';
+    s += rect(438, 128, 104, 136, '#F6EADB', 6) + rect(472, 120, 36, 16, '#8A94A6', 4);
+    [158, 176, 194, 212, 230].forEach(function (y) { s += rect(452, y, 76, 4, '#8A94A6'); });
+    for (let i = 0; i < 3; i++) s += rect(44, 664 + i * 9, 312, 7, '#8B6A43', 2);
+    s += carton(60, 574, 150, 90) + carton(200, 574, 150, 90);
+    s += carton(84, 484, 132, 90) + carton(222, 484, 120, 90);
+    s += carton(110, 414, 118, 70) + carton(234, 414, 104, 70);
+    s += carton(392, 596, 82, 94) + carton(480, 596, 80, 94);
+    s += carton(408, 530, 86, 66) + carton(500, 530, 60, 66);
+    return s;
+  }
+
+  const SCENES = {
+    visit: { name: '门店拜访', addr: '泉州市・示范门店', build: sceneVisit },
+    display: { name: '陈列检查', addr: '泉州市・示范门店', build: sceneDisplay },
+    stock: { name: '库存盘点', addr: '泉州市・示范门店', build: sceneStock }
+  };
+  const sceneImgs = {};
+
+  function rasterize(svg) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+      const img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('scene')); };
+      img.src = url;
+    });
+  }
+  const scenesReady = Promise.all(Object.keys(SCENES).map(function (k) {
+    return rasterize(svgDoc(SCENES[k].build())).then(function (img) { sceneImgs[k] = img; });
+  })).catch(function () { /* 插画读不出来时，上传照片的试用照常可用 */ });
+
+  /* ══════════════ 画到页面上的各个画布 ══════════════ */
+  // 把一张干净的照片画进画布，再按需盖上水印；比例不一致时居中裁切
+  function paint(cv, source, cfg) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const cw = cv.clientWidth, ch = cv.clientHeight;
+    if (!cw || !ch) return;
+    cv.width = Math.round(cw * dpr);
+    cv.height = Math.round(ch * dpr);
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const sw = source.naturalWidth || source.width, sh = source.naturalHeight || source.height;
+    const tr = cv.width / cv.height, sr = sw / sh;
+    let sx = 0, sy = 0, sW = sw, sH = sh;
+    if (sr > tr) { sW = sh * tr; sx = (sw - sW) / 2; }
+    else if (sr < tr) { sH = sw / tr; sy = (sh - sH) / 2; }
+    ctx.drawImage(source, sx, sy, sW, sH, 0, 0, cv.width, cv.height);
+    if (cfg) renderWatermark(ctx, cv.width, cv.height, cfg, Math.min(sw, sh));
+  }
+
+  const demoFrame = $('#demoFrame'), demoCanvas = $('#demoCanvas');
+  const addrInput = $('#demoAddr'), noteInput = $('#demoNote');
+  const demo = { source: null };
+  let chatMarked = true;
+
+  function demoConfig() {
+    const n = nowParts(new Date());
+    return { time: n.time, date: n.date, address: addrInput.value, note: noteInput.value };
+  }
+  function paintDemo() {
+    if (!demo.source) return;
+    const cfg = demoConfig();
+    paint(demoCanvas, demo.source, cfg);
+    demoCanvas.setAttribute('aria-label', '带水印的照片：' + cfg.date + ' ' + cfg.time + '，' + (cfg.address || '地点未填') + '，' + (cfg.note || '备注未填'));
+  }
+  function paintStatic() {
+    const n = nowParts(new Date());
+    const batch = { time: n.time, date: n.date, address: '泉州市・示范门店', note: '门店拜访' };
+    $$('[data-batch]').forEach(function (cv) {
+      const img = sceneImgs[cv.getAttribute('data-batch')];
+      if (img) paint(cv, img, batch);
+    });
+    [
+      { cv: $('#chatA'), img: sceneImgs.display, cfg: { time: '09:13', date: n.date, address: '泉州市・示范门店', note: '陈列检查' } },
+      { cv: $('#chatB'), img: sceneImgs.stock, cfg: { time: '10:40', date: n.date, address: '晋江市・示范门店', note: '库存盘点' } }
+    ].forEach(function (p) {
+      if (p.img) paint(p.cv, p.img, chatMarked ? p.cfg : null);
+    });
+  }
+  let raf = 0;
+  function repaintAll() {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(function () { paintDemo(); paintStatic(); });
+  }
+
+  /* ══════════════ 首屏试用 ══════════════ */
+  function hint(msg) { $('#demoHint').textContent = msg; }
+  function setPressed(key) {
+    $$('.chip[data-scene]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-scene') === key)); });
+  }
+  function syncFrame() {
+    const s = demo.source;
+    if (!s) return;
+    const sw = s.naturalWidth || s.width, sh = s.naturalHeight || s.height;
+    demoFrame.style.aspectRatio = String(Math.round(Math.min(1.5, Math.max(0.6, sw / sh)) * 1000) / 1000);
+  }
+
+  $$('.chip[data-scene]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const key = btn.getAttribute('data-scene'), sc = SCENES[key], img = sceneImgs[key];
+      if (!img) return;
+      demo.source = img;
+      addrInput.value = sc.addr;
+      noteInput.value = sc.name;
+      hint('');
+      setPressed(key);
+      syncFrame();
+      paintDemo();
+    });
+  });
+
+  $('#demoUpload').addEventListener('click', function () { $('#demoFile').click(); });
+
+  function readImage(file, maxLong) {
+    return new Promise(function (resolve, reject) {
+      const fr = new FileReader();
+      fr.onerror = function () { reject(new Error('read')); };
+      fr.onload = function () {
+        const img = new Image();
+        img.onerror = function () { reject(new Error('decode')); };
+        img.onload = function () {
+          const long = Math.max(img.naturalWidth, img.naturalHeight);
+          if (long <= maxLong) return resolve(img);
+          const k = maxLong / long, cv = document.createElement('canvas');
+          cv.width = Math.round(img.naturalWidth * k);
+          cv.height = Math.round(img.naturalHeight * k);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          resolve(cv);
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  $('#demoFile').addEventListener('change', function (e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) return hint('请选择 JPG、PNG 这类图片文件');
+    if (file.size > 10 * 1024 * 1024) return hint('这张照片超过 10MB，换一张小一点的试试');
+    readImage(file, 1920).then(function (src) {
+      demo.source = src;
+      hint('');
+      setPressed(null);
+      syncFrame();
+      paintDemo();
+    }).catch(function () { hint('这张照片读不出来，换一张试试'); });
+  });
+
+  addrInput.addEventListener('input', paintDemo);
+  noteInput.addEventListener('input', function () { setPressed(null); paintDemo(); });
+  $('#demoForm').addEventListener('submit', function (e) { e.preventDefault(); });
+
+  // 保存：把正在看的这张照片和地点、备注带到工具页，那边点了保存才计入免费次数
+  $('#demoSave').addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    const addr = addrInput.value, note = noteInput.value;
+    try {
+      const src = demo.source;
+      if (src) {
+        const cv = document.createElement('canvas');
+        cv.width = src.naturalWidth || src.width;
+        cv.height = src.naturalHeight || src.height;
+        cv.getContext('2d').drawImage(src, 0, 0);
+        sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ img: cv.toDataURL('image/jpeg', 0.9), addr: addr, note: note }));
+      }
+    } catch (err) { /* 存不下就不带过去，工具页里照常上传 */ }
+    const u = new URL(CONFIG.toolUrl, location.href);
+    if (addr) u.searchParams.set('addr', addr);
+    if (note) u.searchParams.set('note', note);
+    location.href = u;
+  });
+
+  /* ══════════════ 时间同步 ══════════════ */
+  function tick() {
+    const n = nowParts(new Date());
+    $$('[data-live="time"]').forEach(function (el) { el.textContent = n.time; });
+    $$('[data-live="date"]').forEach(function (el) { el.textContent = n.date; });
+    paintDemo();
+  }
+  setInterval(tick, 15000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+
+  /* ══════════════ 工作群对比 ══════════════ */
+  $$('.seg [data-mark]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      chatMarked = btn.getAttribute('data-mark') === '1';
+      $$('.seg [data-mark]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+      $$('[data-plain]').forEach(function (el) { el.hidden = chatMarked; });
+      $$('[data-marked]').forEach(function (el) { el.hidden = !chatMarked; });
+      paintStatic();
+    });
+  });
+
+  /* ══════════════ 顶栏 ══════════════ */
+  const topbar = $('#topbar'), heroEl = $('.hero');
+  // 导航里标出当前正在看的栏目
+  const spyLinks = $$('.nav a[href^="#"]').map(function (a) {
+    return { a, el: document.getElementById(a.getAttribute('href').slice(1)) };
+  });
+  function markCurrent() {
+    let current = null;
+    spyLinks.forEach(function (s) {
+      if (!s.el) return;
+      const r = s.el.getBoundingClientRect();
+      if (r.top <= 120 && r.bottom > 120) current = s.a;
+    });
+    spyLinks.forEach(function (s) { if (s.a !== current) s.a.removeAttribute('aria-current'); });
+    if (current) current.setAttribute('aria-current', 'true');
+  }
+  function onScrollNow() {
+    topbar.classList.toggle('light', heroEl.getBoundingClientRect().bottom <= 60);
+    markCurrent();
+  }
+  // 滚动中最多每 100 毫秒算一次，不依赖 requestAnimationFrame（后台或内置浏览器里它可能不触发）
+  let scrollTimer = 0, lastScrollRun = 0;
+  function onScroll() {
+    const now = Date.now();
+    if (now - lastScrollRun >= 100) {
+      lastScrollRun = now;
+      onScrollNow();
+    } else if (!scrollTimer) {
+      scrollTimer = setTimeout(function () {
+        scrollTimer = 0;
+        lastScrollRun = Date.now();
+        onScrollNow();
+      }, 100 - (now - lastScrollRun));
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  /* 站内锚点的平滑滚动用脚本做。不用 CSS 的 scroll-behavior: smooth：
+     部分内置浏览器和截图工具会被它卡住。 */
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target instanceof Element ? e.target.closest('a[href^="#"]') : null;
+    if (!a) return;
+    const id = a.getAttribute('href').slice(1);
+    const target = document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+    if (a.classList.contains('skip')) target.focus({ preventScroll: true });
+    try { history.replaceState(null, '', '#' + id); } catch (err) { /* 忽略 */ }
+  });
+
+  /* ══════════════ 今日免费额度 ══════════════ */
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function refreshStatus() {
+    let left = CONFIG.freePerDay, unlocked = false;
+    try {
+      unlocked = localStorage.getItem(UNLOCKED_KEY) === '1';
+      const q = JSON.parse(localStorage.getItem(QUOTA_KEY) || 'null');
+      if (q && q.d === todayKey()) left = Math.max(0, CONFIG.freePerDay - (Number(q.n) || 0));
+    } catch (err) { /* 读不到就按满额显示 */ }
+    $('#quotaStatus').textContent = unlocked
+      ? '这台设备已解锁买断版，保存不限次数'
+      : (left > 0 ? '今天还能免费保存 ' + left + ' 张，打开就能用' : '今天的 ' + CONFIG.freePerDay + ' 张免费额度已用完，明天 0 点恢复');
+  }
+
+  /* ══════════════ 购买弹窗 ══════════════ */
+  function renderPay() {
+    const area = $('#payArea');
+    if (CONFIG.payUrl) {
+      const a = document.createElement('a');
+      a.className = 'btn btn-accent btn-block';
+      a.href = CONFIG.payUrl;
+      a.textContent = '去支付';
+      if (/^https?:\/\//i.test(CONFIG.payUrl)) { a.target = '_blank'; a.rel = 'noopener'; }
+      area.textContent = '';
+      area.appendChild(a);
+    } else if (CONFIG.payQr) {
+      const fig = document.createElement('div');
+      fig.className = 'pay-qr';
+      const img = new Image();
+      img.alt = '收款码';
+      img.src = CONFIG.payQr;
+      const cap = document.createElement('p');
+      cap.className = 'figcap';
+      cap.style.textAlign = 'center';
+      cap.textContent = '扫码支付 ' + ('\u00a5' + CONFIG.price);
+      fig.appendChild(img);
+      fig.appendChild(cap);
+      area.textContent = '';
+      area.appendChild(fig);
+    } else {
+      // 还没填收款方式：对客户说「开通中，先试用」，不露出开发提示
+      area.innerHTML = '<div class="pay-setup"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>'
+        + '<p><strong>在线付款正在开通。</strong>开通前可以先用免费版，每天可保存 ' + CONFIG.freePerDay + ' 张。</p>'
+        + '<a class="btn btn-outline btn-block" href="#demo">去免费试用</a></div>';
+      area.querySelector('a').addEventListener('click', function () { dialog.close(); });
+    }
+    // 购买步骤只在实际能付款时才展示
+    dialog.querySelector('ol').hidden = !(CONFIG.payUrl || CONFIG.payQr);
+  }
+  const dialog = $('#buyDialog');
+  $$('[data-buy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else if (CONFIG.payUrl) window.open(CONFIG.payUrl, '_blank', 'noopener');
+    });
+  });
+  $('#buyClose').addEventListener('click', function () { dialog.close(); });
+  dialog.addEventListener('click', function (e) { if (e.target === dialog) dialog.close(); });
+
+  /* ══════════════ 尺寸变化时重画 ══════════════ */
+  if ('ResizeObserver' in window) new ResizeObserver(repaintAll).observe(demoFrame);
+  window.addEventListener('resize', repaintAll);
+
+  /* ══════════════ 启动 ══════════════ */
+  $$('[data-price]').forEach(function (el) { el.textContent = '\u00a5' + CONFIG.price; });
+  $$('[data-free]').forEach(function (el) { el.textContent = CONFIG.freePerDay; });
+  renderPay();
+  refreshStatus();
+  onScrollNow();
+  tick();
+  scenesReady.then(function () {
+    demo.source = sceneImgs.visit || null;
+    syncFrame();
+    repaintAll();
+  });
+})();
+</script>
+</body>
+</html>
