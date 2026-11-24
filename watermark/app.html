@@ -749,6 +749,121 @@
             text-align: center;
         }
 
+        /* ==================== 长按保存层 ==================== */
+        .save-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            /* 纯黑，和微信自带的全屏看图一致，也不会透出底下的页面文字 */
+            background: #000;
+            animation: save-in 180ms ease-out;
+        }
+        @keyframes save-in { from { opacity: 0; } to { opacity: 1; } }
+        .save-bar {
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px;
+            color: #fff;
+            font-size: 14px;
+        }
+        .save-close {
+            min-height: 44px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .save-close:active { background: rgba(255, 255, 255, 0.3); }
+        .save-status {
+            padding-right: 4px;
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+        .save-stage {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            padding: 0 12px;
+        }
+        .save-img {
+            max-width: 100%;
+            max-height: 72vh;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+        .save-track {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        /* 图集靠左右滑动切换，不显示横向滚动条 */
+        .save-track::-webkit-scrollbar { display: none; }
+        .save-page {
+            flex: none;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+            scroll-snap-align: center;
+        }
+        .save-page .save-img { max-height: 74vh; }
+        .save-foot {
+            flex: none;
+            display: grid;
+            gap: 12px;
+            justify-items: center;
+            padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+        }
+        .save-note {
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 13px;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .save-tip {
+            color: #fff;
+            font-size: 16px;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .save-tip b { font-weight: 700; }
+        .save-done {
+            width: 100%;
+            max-width: 420px;
+            min-height: 48px;
+            border: none;
+            border-radius: 12px;
+            background: #fff;
+            color: #003366;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 150ms ease;
+        }
+        .save-done:active { transform: scale(0.98); }
+        @media (prefers-reduced-motion: reduce) {
+            .save-overlay { animation: none; }
+            .save-done { transition: none; }
+        }
+
         @media (min-width: 768px) {
             .mobile-container {
                 max-width: 768px;
@@ -1455,65 +1570,130 @@
             return out;
         }
 
-        // ==== 移动端长按保存（手机浏览器的 a[download] 下载碎片化严重：微信/UC/QQ/夸克等都会静默吞掉，唯一可靠路子是长按图片保存）====
+        // ==== 长按保存层 ====
+        // 手机浏览器（微信、UC、QQ 等）基本都会悄悄吞掉网页触发的下载，唯一可靠的办法是长按图片保存。
+        // 所以在以触屏为主的设备上，点「下载」直接出整屏大图：不再先试自动下载，也不再弹会消失的提示条。
         function isMobileLike() {
-            // 移动端一律按"需长按保存"处理：Mobi/Android/iPhone/iPad UA，或触屏设备（iPadOS 13+ UA 伪装成 Mac 但有触点）
+            // Mobi/Android/iPhone/iPad UA，或触屏设备（iPadOS 13+ UA 伪装成 Mac 但有触点）
             return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints || 0) > 1;
         }
 
+        // 是否「以触屏为主」：手机和平板算；带触摸屏的笔记本电脑主指针是鼠标，仍然直接下文件
+        function wantsLongPressSave() {
+            return isMobileLike() && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        }
+
+        let saveReturnFocus = null;
+        function saveEscape(e) { if (e.key === 'Escape') closeSaveOverlay(); }
         function closeSaveOverlay() {
             const old = document.getElementById('saveOverlay');
             if (old && old.parentNode) old.parentNode.removeChild(old);
+            document.removeEventListener('keydown', saveEscape);
+            document.documentElement.style.overflow = '';
+            if (saveReturnFocus && typeof saveReturnFocus.focus === 'function') {
+                saveReturnFocus.focus({ preventScroll: true });
+            }
+            saveReturnFocus = null;
+        }
+
+        function quotaStatusText() {
+            if (unlocked) return '已解锁 · 不限次';
+            return '今日还剩 ' + Math.max(0, DAILY_FREE - loadQuota()) + ' 张';
+        }
+
+        function fillTip(tip, text, strong) {
+            tip.textContent = text;
+            if (strong) {
+                const b = document.createElement('b');
+                b.textContent = strong;
+                tip.appendChild(b);
+            }
         }
 
         function buildSaveShell() {
             closeSaveOverlay();
+            saveReturnFocus = document.activeElement;
+            // 打开期间背景不跟着滚
+            document.documentElement.style.overflow = 'hidden';
+            document.addEventListener('keydown', saveEscape);
+
             const ov = document.createElement('div');
             ov.id = 'saveOverlay';
-            ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.94);display:flex;flex-direction:column;';
+            ov.className = 'save-overlay';
+            ov.setAttribute('role', 'dialog');
+            ov.setAttribute('aria-label', '保存水印照片');
+
             const bar = document.createElement('div');
-            bar.style.cssText = 'flex:none;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 8px;display:flex;align-items:center;gap:10px;color:#fff;font-size:14px;';
+            bar.className = 'save-bar';
             const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'save-close';
             closeBtn.textContent = '✕ 关闭';
-            closeBtn.style.cssText = 'border:none;background:rgba(255,255,255,.16);color:#fff;font-size:14px;padding:6px 12px;border-radius:16px;margin-right:auto;';
             closeBtn.addEventListener('click', closeSaveOverlay);
+            const status = document.createElement('span');
+            status.className = 'save-status';
             bar.appendChild(closeBtn);
-            return { ov: ov, bar: bar };
+            bar.appendChild(status);
+
+            const foot = document.createElement('div');
+            foot.className = 'save-foot';
+            const note = document.createElement('p');
+            note.className = 'save-note';
+            note.hidden = true;
+            const tip = document.createElement('p');
+            tip.className = 'save-tip';
+            const done = document.createElement('button');
+            done.type = 'button';
+            done.className = 'save-done';
+            done.textContent = '已保存，关闭';
+            done.addEventListener('click', closeSaveOverlay);
+            foot.appendChild(note);
+            foot.appendChild(tip);
+            foot.appendChild(done);
+
+            return { ov: ov, bar: bar, status: status, foot: foot, note: note, tip: tip, closeBtn: closeBtn };
+        }
+
+        function mountSaveShell(parts, body) {
+            parts.ov.appendChild(parts.bar);
+            parts.ov.appendChild(body);
+            parts.ov.appendChild(parts.foot);
+            document.body.appendChild(parts.ov);
+            parts.closeBtn.focus({ preventScroll: true });
         }
 
         function showSaveOverlay(dataUrl) {
             const parts = buildSaveShell();
-            const wrap = document.createElement('div');
-            wrap.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:0 12px;';
+            parts.status.textContent = quotaStatusText();
+            fillTip(parts.tip, '长按图片，在菜单里点', '「保存图片」');
+            const stage = document.createElement('div');
+            stage.className = 'save-stage';
             const img = document.createElement('img');
             img.src = dataUrl;
             img.alt = '水印照片';
-            img.style.cssText = 'max-width:100%;max-height:72vh;object-fit:contain;border-radius:8px;';
-            const tip = document.createElement('div');
-            tip.textContent = '👆 长按图片 → 保存到相册';
-            tip.style.cssText = 'color:#fff;font-size:15px;margin:14px 0 calc(env(safe-area-inset-bottom,0px) + 16px);';
-            wrap.appendChild(img);
-            wrap.appendChild(tip);
-            parts.ov.appendChild(parts.bar);
-            parts.ov.appendChild(wrap);
-            document.body.appendChild(parts.ov);
+            img.className = 'save-img';
+            stage.appendChild(img);
+            mountSaveShell(parts, stage);
         }
 
-        function showSaveGallery(dataUrls) {
+        function showSaveGallery(dataUrls, noteText) {
             const parts = buildSaveShell();
-            const counter = document.createElement('div');
+            const counter = parts.status;
             counter.textContent = '第 1/' + dataUrls.length + ' 张';
-            counter.style.cssText = 'flex:none;color:#fff;font-size:13px;opacity:.9;';
-            parts.bar.appendChild(counter);
+            if (noteText) {
+                parts.note.textContent = noteText;
+                parts.note.hidden = false;
+            }
+            fillTip(parts.tip, '左右滑动切换，每张都长按图片，点', '「保存图片」');
             const track = document.createElement('div');
-            track.style.cssText = 'flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;min-height:0;';
+            track.className = 'save-track';
             dataUrls.forEach(function(u, i) {
                 const page = document.createElement('div');
-                page.style.cssText = 'flex:none;width:100%;height:100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px;';
+                page.className = 'save-page';
                 const img = document.createElement('img');
                 img.src = u;
                 img.alt = '水印照片' + (i + 1);
-                img.style.cssText = 'max-width:100%;max-height:74vh;object-fit:contain;border-radius:8px;';
+                img.className = 'save-img';
                 page.appendChild(img);
                 track.appendChild(page);
             });
@@ -1521,13 +1701,7 @@
                 const idx = Math.min(Math.round(track.scrollLeft / track.clientWidth) + 1, dataUrls.length);
                 counter.textContent = '第 ' + idx + '/' + dataUrls.length + ' 张';
             });
-            parts.ov.appendChild(parts.bar);
-            parts.ov.appendChild(track);
-            const tip = document.createElement('div');
-            tip.textContent = '👆 左右滑动切换 · 长按图片保存到相册';
-            tip.style.cssText = 'flex:none;color:#fff;font-size:14px;padding:10px 0 calc(env(safe-area-inset-bottom,0px) + 14px);text-align:center;';
-            parts.ov.appendChild(tip);
-            document.body.appendChild(parts.ov);
+            mountSaveShell(parts, track);
         }
 
         function blobToDataURL(blob) {
@@ -1586,29 +1760,53 @@
             setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
         }
 
+        // 同一张照片、水印没改动时，再点一次「下载当前」不重复扣免费次数（比如刚关掉大图又点了一次）
+        let lastSingleSave = null;
+        function currentSaveKey() {
+            const active = uploadedImages[activeIndex];
+            if (!active) return '';
+            const c = getConfig();
+            return [active.id, c.time, c.date, c.address, c.note].join('|');
+        }
+        function refundQuota(n) {
+            if (unlocked) return;
+            saveQuota(Math.max(0, loadQuota() - n));
+            refreshQuotaUI();
+        }
+
         async function downloadImage() {
             const active = uploadedImages[activeIndex];
             if (!active) {
                 alert('请先上传一张照片');
                 return;
             }
+            const key = currentSaveKey();
+            const sameAsLast = !!lastSingleSave && lastSingleSave.key === key;
             // 免费版每天有次数限制；额度不够时这里会提示并拦下
-            if (consumeQuota(1) === 0) return;
+            if (!sameAsLast && consumeQuota(1) === 0) return;
 
             try {
-                const canvas = document.getElementById('previewCanvas');
-                const out = compressForExport(canvas);
-
-                // 导出前按长边1920压缩、质量0.82
-                // 手机浏览器（UC等）的下载必须在点击手势内同步触发：toBlob 异步回调会丢用户手势被无视，
-                // 所以这里同步 toDataURL，下载和 toast 兜底共用一份，也不再二次编码
-                const dataUrl = out.toDataURL('image/jpeg', EXPORT_QUALITY);
-                autoDownloadUrl(dataUrl, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
+                let dataUrl = sameAsLast ? lastSingleSave.dataUrl : '';
+                if (!dataUrl) {
+                    const canvas = document.getElementById('previewCanvas');
+                    const out = compressForExport(canvas);
+                    // 导出前按长边1920压缩、质量0.82；同步 toDataURL，大图和文件下载共用这一份
+                    dataUrl = out.toDataURL('image/jpeg', EXPORT_QUALITY);
+                    lastSingleSave = { key: key, dataUrl: dataUrl };
+                }
+                if (wantsLongPressSave()) {
+                    // 手机上：直接出整屏大图，长按保存
+                    showSaveOverlay(dataUrl);
+                } else {
+                    // 电脑上：直接下文件
+                    autoDownloadUrl(dataUrl, `打卡水印_${activeIndex + 1}_${new Date().getTime()}.jpg`);
+                }
                 if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                // 手机上万一浏览器吞了下载，toast 里有长按保存的救急入口
-                if (isMobileLike()) showSaveToast([dataUrl]);
             } catch (error) {
                 console.error('下载失败:', error);
+                // 没出图就把刚扣的次数还回去
+                lastSingleSave = null;
+                refundQuota(1);
                 alert('下载失败，请重试');
             }
         }
@@ -1660,6 +1858,7 @@
             // 免费版额度不够保存整批时，只保存额度内的前几张；额度为 0 时提示并拦下
             const limit = consumeQuota(uploadedImages.length);
             if (limit === 0) return;
+            const limited = limit < uploadedImages.length;
             const btn = document.getElementById('downloadAllBtn');
             const oldHTML = btn.innerHTML;
             btn.disabled = true;
@@ -1676,7 +1875,11 @@
                 }));
                 const items = await Promise.all(tasks);
 
-                if (window.JSZip) {
+                if (wantsLongPressSave()) {
+                    // 手机上：直接出图集，左右滑动逐张长按保存
+                    const urls = await Promise.all(items.map(it => blobToDataURL(it.blob)));
+                    showSaveGallery(urls, limited ? ('今天只剩 ' + limit + ' 次额度，本次可保存前 ' + limit + ' 张') : '');
+                } else if (window.JSZip) {
                     const zip = new JSZip();
                     items.forEach(it => zip.file(it.name, it.blob));
                     const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -1689,11 +1892,6 @@
                     }
                 }
                 if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-                if (isMobileLike()) {
-                    // 手机上万一 zip 被吞，toast 里可切换成画廊逐张长按
-                    const urls = await Promise.all(items.map(it => blobToDataURL(it.blob)));
-                    showSaveToast(urls);
-                }
             } catch (error) {
                 console.error('打包下载失败:', error);
                 alert('打包下载失败：' + error.message);
