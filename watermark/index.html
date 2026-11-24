@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>水印相机 · 巡店打卡水印工具</title>
-<meta name="description" content="巡店照片自动盖上时间、地点、备注。微信里打开就能用，不装 App、不用注册，照片不上传。免费版每天可保存 5 张，¥10 一次买断不限次。">
+<meta name="description" content="巡店照片自动盖上时间、地点、备注。微信里打开就能用，不装 App、不用注册，照片不上传。免费版每天可保存 5 张，¥9 一次买断不限次。">
 <meta name="theme-color" content="#082443">
 <style>
   /* ─── tokens：配色全部取自水印相机工具页，改这里全页生效 ─── */
@@ -445,7 +445,8 @@
   .footer small { font-size: var(--fs-caption); color: var(--muted); }
 
   /* ─── 购买弹窗 ─── */
-  .dialog { width: min(92vw, 440px); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); padding: 0; border: none; border-radius: var(--radius); background: var(--surface); color: var(--ink-soft); overflow-y: auto; }
+  /* 弹窗要居中：顶部的全局 reset 把浏览器给 dialog 的 margin: auto 清掉了，这里补回来；四周各留 16px */
+  .dialog { width: min(92vw, 440px); max-width: calc(100% - 32px); margin: auto; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); padding: 0; border: none; border-radius: var(--radius); background: var(--surface); color: var(--ink-soft); overflow-y: auto; }
   .dialog::backdrop { background: rgba(8, 36, 67, 0.6); }
   .dialog-inner { display: grid; gap: var(--s-4); padding: var(--s-4) var(--s-5) var(--s-5); }
   /* 弹窗内容较长时头部不动，关闭按钮始终点得到 */
@@ -601,7 +602,7 @@
           </div>
           <p class="demo-time"><span>时间 <span data-live="time">09:13</span> 自动同步</span><span data-live="date">2026.01.01 星期四</span></p>
           <a class="btn btn-accent btn-block" id="demoSave" href="app.html">保存这张图</a>
-          <p class="demo-note">免费版每天可保存 <span data-free>5</span> 张 · <a class="link-u" href="#pricing"><span data-price>¥10</span> 解锁不限次</a></p>
+          <p class="demo-note">免费版每天可保存 <span data-free>5</span> 张 · <a class="link-u" href="#pricing"><span data-price>¥9</span> 解锁不限次</a></p>
         </form>
       </div>
     </div>
@@ -776,7 +777,7 @@
         <div class="tier featured" data-od-id="tier-paid">
           <span class="tier-tab">推荐</span>
           <h3 class="tier-name">买断版</h3>
-          <p class="tier-price"><span data-price>¥10</span><small>一次付清</small></p>
+          <p class="tier-price"><span data-price>¥9</span><small>一次付清</small></p>
           <p class="tier-lead">保存不限次数</p>
           <ul>
             <li><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span>保存不限次数</span></li>
@@ -795,7 +796,7 @@
         <li class="buy-step"><b aria-hidden="true">3</b><p><strong>解锁</strong>　打开工具，把激活码粘贴到保存按钮旁，立即不限次。</p></li>
       </ol>
       <ol class="buy-steps" data-pay-mode="manual" hidden>
-        <li class="buy-step"><b aria-hidden="true">1</b><p><strong>付款</strong>　点「立即购买」，用微信扫码付款。金额会带一个尾数，比如 <span data-pay-example>¥10.37</span>，尾数用来识别你的订单。</p></li>
+        <li class="buy-step"><b aria-hidden="true">1</b><p><strong>付款</strong>　点「立即购买」，用微信扫码付款。金额会带一个尾数，比如 <span data-pay-example>¥9.37</span>，尾数用来识别你的订单。</p></li>
         <li class="buy-step"><b aria-hidden="true">2</b><p><strong>加微信领码</strong>　付款后加我微信，备注你的尾数。我核对到账后，把解锁链接发给你。</p></li>
         <li class="buy-step"><b aria-hidden="true">3</b><p><strong>解锁</strong>　点开链接就自动解锁，不用手动输入。</p></li>
       </ol>
@@ -881,7 +882,7 @@
     <div class="dialog-head">
       <div>
         <h2 id="buyTitle">购买买断版</h2>
-        <p class="dialog-price"><span data-price>¥10</span><small>一次付清 · 保存不限次数</small></p>
+        <p class="dialog-price"><span data-price>¥9</span><small>一次付清 · 保存不限次数</small></p>
       </div>
       <button type="button" class="icon-btn" id="buyClose" aria-label="关闭购买窗口"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
@@ -900,7 +901,7 @@
 
   /* ══════════════ 可改的配置 ══════════════ */
   const CONFIG = {
-    price: 10,            // 买断价（元），改这里全页生效
+    price: 9,             // 买断价（元），改这里全页生效
     freePerDay: 5,        // 免费版每天可保存的张数，要和 app.html 里的 DAILY_FREE 一致
     toolUrl: 'app.html',  // 公开版工具页
     payUrl: '',           // 支付链接（支付平台的商品页）。填了之后走在线支付：弹窗里出现「去支付」按钮，付款由平台确认
@@ -1450,8 +1451,8 @@
 
   /* ══════════════ 购买弹窗 ══════════════ */
   /* ─── 订单尾数 ───
-     扫码收款没有系统对账，所以每单的金额带一个两位数的尾数（比如 ¥10.37），
-     看到「到账 10.37」就知道是哪一单。同一个人当天反复打开弹窗，尾数不变。 */
+     扫码收款没有系统对账，所以每单的金额带一个两位数的尾数（比如 ¥9.37），
+     看到「到账 9.37」就知道是哪一单。同一个人当天反复打开弹窗，尾数不变。 */
   const TAIL_KEY = 'wm_tail_v1';
   function orderTail() {
     const d = new Date();
